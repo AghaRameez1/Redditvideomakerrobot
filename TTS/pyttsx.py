@@ -1,7 +1,8 @@
 import random
-
+import os
 import pyttsx3
-
+from pydub import AudioSegment
+from pydub.playback import play
 from utils import settings
 
 
@@ -35,8 +36,11 @@ class pyttsx:
         engine.setProperty(
             "voice", voices[voice_id].id
         )  # changing index changes voices but ony 0 and 1 are working here
-        engine.save_to_file(text, f"{filepath}")
+        engine.save_to_file(text, f"{filepath}.wav")
         engine.runAndWait()
+        sound = AudioSegment.from_file(f"{filepath}.wav")
+        sound.export(f"{filepath}.mp3", format="mp3")
+        os.remove(f"{filepath}.wav")
 
     def randomvoice(self):
         return random.choice(self.voices)
