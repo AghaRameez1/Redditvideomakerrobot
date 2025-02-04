@@ -148,34 +148,6 @@ def get_screenshots_of_reddit_posts(reddit_object: dict, screenshot_num: int):
             raise e
         print_substep("Screenshots downloaded Successfully.", style="bold green")
         print_substep("Launching Headless Browser for comments...")
-
-        browser = p.chromium.launch(
-            headless=False
-        )  # headless=False will show the browser for debugging purposes
-        # Device scale factor (or dsf for short) allows us to increase the resolution of the screenshots
-        # When the dsf is 1, the width of the screenshot is 600 pixels
-        # so we need a dsf such that the width of the screenshot is greater than the final resolution of the video
-        dsf = (W // 600) + 1
-
-        context = browser.new_context(
-            locale=lang or "en-us",
-            color_scheme="dark",
-            viewport=ViewportSize(width=W, height=H),
-            device_scale_factor=dsf,
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-        )
-        # Login to Reddit
-        print_substep("Logging in to Reddit...")
-        page = context.new_page()
-        page.goto("https://www.reddit.com/login", timeout=0)
-        page.set_viewport_size(ViewportSize(width=W, height=H))
-        page.wait_for_load_state()
-
-        page.locator(f'input[name="username"]').fill(settings.config["reddit"]["creds"]["username"])
-        page.locator(f'input[name="password"]').fill(settings.config["reddit"]["creds"]["password"])
-        page.get_by_role("button", name="Log In").click()
-        page.wait_for_timeout(5000)
-        page.wait_for_load_state()
         for idx, comment in enumerate(
             track(
                 reddit_object["comments"][:screenshot_num],
@@ -195,14 +167,15 @@ def get_screenshots_of_reddit_posts(reddit_object: dict, screenshot_num: int):
                 # zoom the body of the page
                     page.evaluate("document.body.style.zoom=" + str(zoom))
                 # as zooming the body doesn't change the properties of the divs, we need to adjust for the zoom
+                    location = page.locator('#comment-children').first.evaluate("element => element.style.display = 'none'")
                     location = page.locator(commentid).bounding_box()
-                post_colided = input("Post Colided: ?")
-                if post_colided == 'y' or post_colided == "Y" and settings.config["settings"]["zoom"] != 1:
-                    location = page.locator(commentid).bounding_box()
-                    for i in location:
-                        location[i] = float("{:.2f}".format(location[i]))
-                    page.screenshot(clip=location,path=f"assets/temp/{reddit_id}/png/comment_{idx}.png")
-                else:
+                # post_colided = input("Post Colided: ?")
+                # if post_colided == 'y' or post_colided == "Y" and settings.config["settings"]["zoom"] != 1:
+                #     location = page.locator(commentid).bounding_box()
+                #     for i in location:
+                #         location[i] = float("{:.2f}".format(location[i]))
+                #     page.screenshot(clip=location,path=f"assets/temp/{reddit_id}/png/comment_{idx}.png")
+                # else:
                     page.locator(commentid).screenshot(path=f"assets/temp/{reddit_id}/png/comment_{idx}.png")
             except TimeoutError:
                 del reddit_object["comments"]
