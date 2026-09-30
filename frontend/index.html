@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shorts generator</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Shorts generator</a>
+  <nav>
+    <a href="/" aria-current="page">Studio</a>
+    <a href="/videos">My videos</a>
+    <a href="/settings">Settings</a>
+    <a href="/admin" id="adminLink" hidden>Admin</a>
+    <span class="who" id="who"></span>
+    <button type="button" class="ghost small" id="signout">Sign out</button>
+  </nav>
+</header>
+<div class="wrap">
+  <p class="sub">Paste a script, style it, and render a vertical 1080×1920 video.</p>
+
+  <div class="grid">
+    <form class="card" id="form">
+      <div class="ai" id="aiBox" hidden>
+        <div class="ai-head">
+          <span class="ai-title">Write it for me</span>
+          <span class="meta">AI drafts a title and script. You can edit it before rendering.</span>
+        </div>
+        <input type="text" id="topic" placeholder="What's the video about? e.g. why Kubernetes pods keep restarting">
+        <div class="ai-row">
+          <select id="provider" aria-label="AI"></select>
+          <select id="tone" aria-label="Tone"></select>
+          <select id="seconds" aria-label="Length">
+            <option value="30">About 30 s</option>
+            <option value="45" selected>About 45 s</option>
+            <option value="60">About 60 s</option>
+          </select>
+          <button type="button" class="ghost" id="generate">Generate script</button>
+        </div>
+        <p class="meta ai-status" id="aiStatus" hidden></p>
+      </div>
+
+      <label for="title">Title</label>
+      <input type="text" id="title" placeholder="The dashboard was green. The disk was not." required>
+
+      <label for="body">Script</label>
+      <textarea id="body" placeholder="Each sentence becomes one on-screen card." required></textarea>
+      <div class="meta" id="count">0 words · about 0 seconds</div>
+
+      <div class="row3">
+        <div><label for="voice">Voice</label><select id="voice"></select></div>
+        <div><label for="background">Background</label><select id="background"></select></div>
+        <div><label for="music">Music</label><select id="music"></select></div>
+      </div>
+
+      <fieldset>
+        <legend>Look</legend>
+        <div class="presets">
+          <button type="button" class="ghost" data-preset="classic">Classic card</button>
+          <button type="button" class="ghost" data-preset="captions">Captions</button>
+          <button type="button" class="ghost" data-preset="light">Light card</button>
+          <button type="button" class="ghost" data-preset="bold">Bold yellow</button>
+        </div>
+
+        <span class="lbl">Background</span>
+        <div class="row">
+          <div class="ctl"><span class="meta">Blur</span>
+            <input type="range" id="blur" min="0" max="40"><output data-for="blur"></output></div>
+          <div class="ctl"><span class="meta">Darken</span>
+            <input type="range" id="dim" min="0" max="80"><output data-for="dim" data-unit="%"></output></div>
+        </div>
+
+        <span class="lbl">Text</span>
+        <div class="row">
+          <div class="ctl"><input type="color" id="text_color" title="Text colour">
+            <span class="meta">Size</span>
+            <input type="range" id="font_size" min="28" max="140"><output data-for="font_size" data-unit="px"></output></div>
+          <div class="ctl gap">
+            <label class="check"><input type="checkbox" id="bold"> Bold</label>
+            <label class="check"><input type="checkbox" id="outline"> Outline</label>
+            <input type="color" id="outline_color" title="Outline colour">
+          </div>
+        </div>
+
+        <span class="lbl">Card</span>
+        <div class="row">
+          <div class="ctl"><label class="check"><input type="checkbox" id="card"> Show card</label>
+            <input type="color" id="card_color" title="Card colour"></div>
+          <div class="ctl"><span class="meta">Opacity</span>
+            <input type="range" id="card_opacity" min="0" max="100"><output data-for="card_opacity" data-unit="%"></output></div>
+        </div>
+
+        <span class="lbl">Placement</span>
+        <div class="row">
+          <div class="ctl"><span class="meta">Top</span>
+            <input type="range" id="position" min="5" max="95"><span class="meta">Bottom</span></div>
+          <div class="ctl"><span class="meta">Width</span>
+            <input type="range" id="width" min="40" max="96"><output data-for="width" data-unit="%"></output></div>
+        </div>
+      </fieldset>
+
+      <button class="primary" id="go" type="submit">Create video</button>
+    </form>
+
+    <div class="side">
+      <div class="card">
+        <h2>Preview</h2>
+        <div class="phone" id="phone">
+          <img id="pbg" alt="" hidden>
+          <div class="pdim" id="pdim"></div>
+          <div class="pcard" id="pcard"></div>
+        </div>
+        <p class="note" id="pnote"></p>
+      </div>
+
+      <div class="card" id="progressCard" hidden>
+        <h2>Progress</h2>
+        <div class="bar"><div class="fill" id="fill"></div></div>
+        <div class="stage"><span id="stage">Starting</span><span id="pct">0%</span></div>
+        <div id="result"></div>
+      </div>
+
+      <p class="meta side-note">Finished videos are saved to <a href="/videos">My videos</a>, where you can
+        download them or share them to YouTube.</p>
+    </div>
+  </div>
+</div>
+<script src="/static/js/common.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>

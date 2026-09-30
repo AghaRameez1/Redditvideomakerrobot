@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings · Script Studio</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Script Studio</a>
+  <nav>
+    <a href="/">Studio</a>
+    <a href="/videos">My videos</a>
+    <a href="/settings" aria-current="page">Settings</a>
+    <a href="/admin" id="adminLink" hidden>Admin</a>
+    <span class="who" id="who"></span>
+    <button type="button" class="ghost small" id="signout">Sign out</button>
+  </nav>
+</header>
+
+<div class="wrap narrow">
+  <h1>Settings</h1>
+
+  <section class="card">
+    <h2>AI keys</h2>
+    <p class="meta">Add a key for any AI you want to write scripts with. Your key is encrypted before it's stored,
+      only the last four characters are ever shown again, and the AI company bills your own account for what you use.</p>
+    <div id="providers"></div>
+  </section>
+
+  <section class="card" id="connections">
+    <h2>Connected accounts</h2>
+    <p class="meta">Connect YouTube to post videos straight from My videos. You sign in on Google's
+      site and approve access; this app never sees your password, and you can disconnect at any time.</p>
+    <p class="status" id="connMsg" hidden></p>
+    <div id="connList"></div>
+  </section>
+
+  <section class="card">
+    <h2>Account</h2>
+    <p id="accountInfo" class="meta"></p>
+    <div class="actions">
+      <button type="button" class="ghost" id="logoutAll">Sign out on all devices</button>
+      <button type="button" class="danger" id="deleteAccount">Delete account</button>
+    </div>
+    <p class="err" id="accountError" hidden></p>
+  </section>
+</div>
+
+<script src="/static/js/common.js"></script>
+<script src="/static/js/settings.js"></script>
+</body>
+</html>

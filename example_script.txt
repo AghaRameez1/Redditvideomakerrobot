@@ -1,0 +1,7 @@
+The dashboard was green. The disk was not.
+We built a pipeline that streamed database changes into Kafka.
+Everything looked healthy.
+Then storage started climbing, eight hundred megabytes an hour, while the table we were watching sat completely idle.
+The two metrics everyone alerts on were dead. They never moved.
+The fix took ten minutes. Finding out our alarms were blind took the rest of the day.
+Check that your alert actually moves when the thing it watches breaks.

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My videos · Script Studio</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Script Studio</a>
+  <nav>
+    <a href="/">Studio</a>
+    <a href="/videos" aria-current="page">My videos</a>
+    <a href="/settings">Settings</a>
+    <a href="/admin" id="adminLink" hidden>Admin</a>
+    <span class="who" id="who"></span>
+    <button type="button" class="ghost small" id="signout">Sign out</button>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="lib-head">
+    <h1>My videos</h1>
+    <a class="primary small btnlink" href="/">+ New video</a>
+  </div>
+  <div class="stats" id="stats" hidden></div>
+  <p class="meta" id="cleanNote" hidden></p>
+  <p class="meta" id="connNote" hidden></p>
+  <div class="lib-grid" id="grid"></div>
+  <p class="empty" id="empty" hidden>No videos yet. <a href="/">Make your first one in the Studio.</a></p>
+</div>
+
+<!-- play -->
+<dialog id="player" class="dlg">
+  <video id="playerVideo" controls playsinline></video>
+  <div class="actions"><button type="button" class="ghost" data-close>Close</button></div>
+</dialog>
+
+<!-- delete -->
+<dialog id="delDlg" class="dlg">
+  <h2 id="delTitle">Delete</h2>
+  <p class="meta" id="delText"></p>
+  <p class="err" id="delError" hidden></p>
+  <div class="actions">
+    <button type="button" class="primary small" id="delKeep">Remove file, keep link</button>
+    <button type="button" class="danger" id="delAll">Delete completely</button>
+    <button type="button" class="ghost" data-close>Cancel</button>
+  </div>
+</dialog>
+
+<!-- share -->
+<dialog id="shareDlg" class="dlg">
+  <form id="shareForm" method="dialog">
+    <h2 id="shareTitle">Share</h2>
+    <div id="ytFields">
+      <label for="ytTitle" class="first">Title <span class="meta" id="ytTitleCount"></span></label>
+      <input type="text" id="ytTitle" maxlength="100">
+      <label for="ytDesc">Description</label>
+      <textarea id="ytDesc" rows="6" maxlength="5000"></textarea>
+      <label for="ytPrivacy">Visibility</label>
+      <select id="ytPrivacy">
+        <option value="private">Private</option>
+        <option value="unlisted">Unlisted</option>
+        <option value="public">Public</option>
+      </select>
+      <p class="meta">Until this app passes Google's audit, YouTube keeps every upload private
+        whatever you pick here. You can make it public afterwards in YouTube Studio.</p>
+    </div>
+    <p class="err" id="shareError" hidden></p>
+    <div class="actions">
+      <button type="submit" class="primary small" id="shareGo">Post</button>
+      <button type="button" class="ghost" data-close>Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/static/js/common.js"></script>
+<script src="/static/js/library.js"></script>
+</body>
+</html>

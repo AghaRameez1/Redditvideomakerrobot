@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin · Script Studio</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Script Studio</a>
+  <nav>
+    <a href="/">Studio</a>
+    <a href="/videos">My videos</a>
+    <a href="/settings">Settings</a>
+    <a href="/admin" id="adminLink" aria-current="page">Admin</a>
+    <span class="who" id="who"></span>
+    <button type="button" class="ghost small" id="signout">Sign out</button>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1>Admin</h1>
+
+  <section class="card">
+    <div class="provider-head">
+      <h2>Overview</h2>
+      <button type="button" class="ghost small" id="refresh">Refresh</button>
+    </div>
+    <div class="stats" id="totals"></div>
+    <div class="charts">
+      <figure class="chart"><figcaption>Sign-ups, last 30 days <span class="chart-total"></span></figcaption><div class="bars" id="signupChart"></div><div class="chart-axis"></div></figure>
+      <figure class="chart"><figcaption>Videos made, last 30 days <span class="chart-total"></span></figcaption><div class="bars" id="videoChart"></div><div class="chart-axis"></div></figure>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="provider-head">
+      <h2>Users</h2>
+      <div class="head-actions">
+        <input type="search" id="userFilter" placeholder="Filter by email or name" aria-label="Filter users">
+        <button type="button" class="primary small" id="addUser">+ Add user</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="users">
+        <thead><tr><th>User</th><th>Role</th><th>Signed up</th><th class="num">Videos</th>
+          <th class="num">Posted</th><th>Last video</th><th>AI keys</th><th>YouTube</th><th class="num">Disk</th><th><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody id="userRows"></tbody>
+      </table>
+    </div>
+    <p class="empty" id="noUsers" hidden>No users match.</p>
+  </section>
+
+  <div id="services"></div>
+</div>
+
+<!-- add / edit a user -->
+<dialog id="userDlg" class="dlg">
+  <form id="userForm" method="dialog">
+    <h2 id="userDlgTitle">Add user</h2>
+    <label for="uEmail" class="first">Email</label>
+    <input type="email" id="uEmail" autocomplete="off" required>
+    <label for="uName">Name <span class="meta">(optional)</span></label>
+    <input type="text" id="uName" autocomplete="off" maxlength="80">
+    <label for="uPassword" id="uPasswordLabel">Password</label>
+    <input type="password" id="uPassword" autocomplete="new-password">
+    <p class="meta" id="uPasswordNote"></p>
+    <label for="uRole">Role</label>
+    <select id="uRole"></select>
+    <p class="meta" id="uRoleNote"></p>
+    <p class="err" id="userError" hidden></p>
+    <div class="actions">
+      <button type="submit" class="primary small" id="userSave">Save</button>
+      <button type="button" class="ghost" data-close>Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/static/js/common.js"></script>
+<script src="/static/js/admin.js"></script>
+</body>
+</html>
