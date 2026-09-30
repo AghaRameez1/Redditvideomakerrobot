@@ -206,6 +206,8 @@ Dockerfile, docker-compose.yml, Caddyfile, .env.example   Docker deployment with
 make_video.py       command-line entry point (no accounts)
 frontend/           HTML, CSS and JS only; talks to the backend over JSON
   landing.html        public home page (signed-out visitors)
+  img/                icon.svg (source), favicon and app icons exported from it
+  site.webmanifest    app name and icons for "Add to Home Screen"
   login.html          sign in / create account
   index.html          the studio (dashboard)
   library.html        My videos: play, download, share

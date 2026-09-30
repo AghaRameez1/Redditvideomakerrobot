@@ -329,3 +329,6 @@ input[type=datetime-local] { background: var(--bg); color: var(--text); border: 
 .vcard.rendering .thumb { display: grid; place-items: center; }
 .render-pct { font-size: 28px; font-weight: 800; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
 .vcard.rendering .bar { margin-top: auto; }
+.topbar .brand { display: inline-flex; align-items: center; gap: 9px; }
+.brand-icon { width: 24px; height: 24px; display: block; flex: none; }
+.auth-logo { width: 56px; height: 56px; display: block; margin: 0 0 14px; }

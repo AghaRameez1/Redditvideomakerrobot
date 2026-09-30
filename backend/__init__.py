@@ -29,6 +29,10 @@ def create_app() -> Flask:
     for blueprint in (auth_bp, api_bp, library_bp, connections_bp, admin_bp, billing_bp, footage_bp):
         app.register_blueprint(blueprint)
 
+    @app.get("/favicon.ico")
+    def favicon():  # browsers ask for this path directly
+        return app.send_static_file("img/favicon.ico")
+
     @app.get("/login")
     def login_page():
         return redirect("/") if current_user() else app.send_static_file("login.html")
