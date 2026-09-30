@@ -11,6 +11,7 @@ from . import cleanup, config, db
 from .admin import bp as admin_bp
 from .api import bp as api_bp
 from .auth import bp as auth_bp
+from .billing import bp as billing_bp
 from .connections import bp as connections_bp
 from .library import bp as library_bp
 from .security import ROLES, check_same_origin, current_user, page_login_required, page_role_required
@@ -24,7 +25,7 @@ def create_app() -> Flask:
 
     db.init(app)
     app.before_request(check_same_origin)
-    for blueprint in (auth_bp, api_bp, library_bp, connections_bp, admin_bp):
+    for blueprint in (auth_bp, api_bp, library_bp, connections_bp, admin_bp, billing_bp):
         app.register_blueprint(blueprint)
 
     @app.get("/login")

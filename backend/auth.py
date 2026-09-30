@@ -24,7 +24,7 @@ def _google():
 def public_user(user):
     return {"email": user["email"], "name": user["name"] or "",
             "has_password": bool(user["password_hash"]), "google": bool(user["google_sub"]),
-            "role": user["role"], "can_manage": has_role(user, "manager")}
+            "role": user["role"], "can_manage": has_role(user, "manager"), "plan": user["plan"]}
 
 
 # ---------- email + password ----------

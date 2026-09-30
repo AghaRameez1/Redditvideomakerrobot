@@ -1,0 +1,9 @@
+# Caddy gets and renews a free HTTPS certificate for $DOMAIN automatically.
+# With DOMAIN=localhost it uses a local test certificate instead.
+{$DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 5MB
+	}
+	reverse_proxy app:8000
+}

@@ -125,3 +125,61 @@ async function init() {
 }
 
 init();
+
+// ---------- plan & billing ----------
+let billingData = null, billingPeriod = "monthly";
+const fmtMoney = (n) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
+
+function renderBilling(b) {
+  billingData = b;
+  const u = b.usage;
+  $("planBadge").textContent = u.staff ? `${b.plan.name} · staff, unlimited` : `${b.plan.name} plan`;
+  const resets = new Date(u.resets_at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  $("usage").innerHTML = u.limit === null
+    ? `<p class="meta">You've made ${u.used} video${u.used === 1 ? "" : "s"} this month. No limit for staff accounts.</p>`
+    : `<div class="usage-row"><span>${u.used} of ${u.limit} videos used this month</span><span class="meta">Resets ${resets}</span></div>
+       <div class="bar"><div class="fill${u.left === 0 ? " full" : ""}" style="width:${Math.min(100, (100 * u.used) / u.limit)}%"></div></div>
+       ${u.watermark ? `<p class="meta">Free videos carry a small “Made with Script Studio” label. Paid plans remove it.</p>` : ""}`;
+
+  const req = b.request;
+  $("planList").innerHTML = b.plans.map((p) => {
+    const current = p.key === b.plan.key;
+    const asked = req && req.plan === p.key;
+    const price = p.monthly === 0 ? "Free" : billingPeriod === "yearly" ? `${fmtMoney(p.yearly)}/year` : `${fmtMoney(p.monthly)}/month`;
+    let action = "";
+    if (current) action = `<span class="badge on">Current plan</span>`;
+    else if (asked) action = `<span class="badge">Requested (${req.period})</span>
+      <button type="button" class="ghost small" data-cancel>Cancel</button>`;
+    else if (p.monthly > 0) action = `<button type="button" class="primary small" data-ask="${p.key}">Choose ${esc(p.name)}</button>`;
+    return `<div class="plan-row${current ? " current" : ""}">
+      <div><strong>${esc(p.name)}</strong> <span class="meta">${p.videos} videos a month${p.watermark ? " · with label" : ""}</span></div>
+      <div class="plan-price">${price}</div>
+      <div class="plan-action">${action}</div>
+    </div>`;
+  }).join("");
+
+  document.querySelectorAll("[data-ask]").forEach((btn) => (btn.onclick = async () => {
+    try {
+      renderBilling(await api("/api/billing/request", { method: "POST", body: { plan: btn.dataset.ask, period: billingPeriod } }));
+      billingMsg("Request sent. You'll see the new plan here once it's switched on.");
+    } catch (err) { billingMsg(err.message, true); }
+  }));
+  document.querySelectorAll("[data-cancel]").forEach((btn) => (btn.onclick = async () => {
+    renderBilling(await api("/api/billing/request", { method: "DELETE" }));
+    billingMsg("Request cancelled.");
+  }));
+}
+
+function billingMsg(text, isErr = false) {
+  $("billingMsg").hidden = !text; $("billingMsg").textContent = text; $("billingMsg").classList.toggle("err", isErr);
+}
+
+document.querySelectorAll("#billing [data-period]").forEach((b) => (b.onclick = () => {
+  billingPeriod = b.dataset.period;
+  document.querySelectorAll("#billing [data-period]").forEach((x) => {
+    x.classList.toggle("on", x === b); x.setAttribute("aria-checked", String(x === b));
+  });
+  renderBilling(billingData);
+}));
+
+api("/api/billing").then(renderBilling);

@@ -213,3 +213,30 @@ section { scroll-margin-top: 80px; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
   html { scroll-behavior: auto; }
 }
+
+/* ---------- pricing ---------- */
+.billing-toggle { display: flex; justify-content: center; gap: 4px; width: max-content; margin: -20px auto 36px;
+                  padding: 4px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+.billing-toggle button { font: inherit; font-size: 14px; font-weight: 650; color: var(--muted); background: none; border: 0;
+                         border-radius: 9px; padding: 8px 16px; cursor: pointer; }
+.billing-toggle button.on { background: var(--panel-2); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
+.billing-toggle button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.save { color: var(--accent); font-size: 12px; margin-left: 4px; }
+.plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; align-items: stretch; max-width: 1000px; margin: 0 auto; }
+.plan { position: relative; display: flex; flex-direction: column; padding: 28px; border-radius: 20px;
+        background: var(--panel); border: 1px solid var(--line); }
+.plan.featured { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, var(--panel-2)), var(--panel));
+                 border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+                 box-shadow: 0 24px 60px -30px color-mix(in srgb, var(--accent) 60%, transparent); }
+.tag { position: absolute; top: -12px; left: 28px; font-size: 12px; font-weight: 700; color: var(--accent-ink);
+       background: var(--accent); border-radius: 99px; padding: 3px 10px; }
+.plan h3 { font-size: 20px; }
+.price { margin: 14px 0 0; }
+.price strong { font-size: 42px; font-weight: 800; letter-spacing: -0.03em; }
+.price span { color: var(--muted); font-size: 14px; }
+.per-month { color: var(--muted); font-size: 13px; }
+.plan ul { list-style: none; padding: 0; margin: 20px 0 26px; display: grid; gap: 10px; font-size: 15px; flex: 1; }
+.plan li::before { content: "✓"; color: var(--accent); font-weight: 800; margin-right: 10px; }
+.plan .btn { width: 100%; }
+.plans-note { max-width: 720px; margin: 28px auto 0; text-align: center; color: var(--muted); font-size: 14px; }
+@media (max-width: 960px) { .plans { grid-template-columns: 1fr; max-width: 440px; } }

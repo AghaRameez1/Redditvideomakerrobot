@@ -15,6 +15,7 @@ let FIELDS = [];
 // ---------- setup ----------
 async function init() {
   await initTopbar();
+  loadUsage();
   const opts = await api("/api/options");
   DEFAULT_STYLE = opts.default_style;
   FIELDS = Object.keys(DEFAULT_STYLE);
@@ -208,8 +209,10 @@ function setProgress(pct, stage) {
 }
 
 function showError(msg) {
-  $("result").innerHTML = `<p class="err">${esc(msg)}</p>`;
+  const upgrade = /Upgrade in Settings/.test(msg) ? ` <a href="/settings#billing">See plans</a>` : "";
+  $("result").innerHTML = `<p class="err">${esc(msg)}${upgrade}</p>`;
   $("go").disabled = false;
+  loadUsage();
 }
 
 async function poll(id) {
@@ -232,6 +235,7 @@ async function poll(id) {
       <p class="meta">Saved to My videos. Share it to YouTube from there.</p>`;
     $("go").disabled = false;
     loadPreviewBackground(); // a first-time download is now available for the preview
+    loadUsage();
   } else if (job.status === "error") {
     showError(`Failed: ${job.error || "unknown error"}`);
   } else {
@@ -239,4 +243,16 @@ async function poll(id) {
   }
 }
 
+
+// How many videos the plan has left this month, under the Create button.
+async function loadUsage() {
+  try {
+    const { usage: u, plan } = await api("/api/billing");
+    if (u.limit === null) return;
+    $("usageLine").hidden = false;
+    $("usageLine").innerHTML = u.left === 0
+      ? `You've used all ${u.limit} videos on the ${esc(plan.name)} plan this month. <a href="/settings#billing">Upgrade</a>`
+      : `${u.left} of ${u.limit} videos left this month on ${esc(plan.name)}.${plan.key === "free" ? ` <a href="/settings#billing">Upgrade</a>` : ""}`;
+  } catch (_) { /* the page still works without it */ }
+}
 init();

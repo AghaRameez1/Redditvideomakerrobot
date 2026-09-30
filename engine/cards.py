@@ -89,3 +89,15 @@ def render_card(text, style, video_width, path, bold=None):
                   fill=_rgba(style["text_color"]), stroke_width=stroke,
                   stroke_fill=_rgba(style["outline_color"]))
     img.save(path)
+
+
+def render_watermark(text, path, size=30):
+    """A small semi-transparent label, e.g. "Made with Script Studio", for free-plan videos."""
+    font = ImageFont.truetype(str(FONTS / "Roboto-Medium.ttf"), size)
+    pad_x, pad_y = round(size * 0.6), round(size * 0.35)
+    width, height = round(font.getlength(text)) + 2 * pad_x, round(size * 1.2) + 2 * pad_y
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle([0, 0, width - 1, height - 1], radius=height // 2, fill=(0, 0, 0, 140))
+    draw.text((width / 2, height / 2), text, font=font, anchor="mm", fill=(255, 255, 255, 230))
+    img.save(path)

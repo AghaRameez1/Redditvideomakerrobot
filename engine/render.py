@@ -9,8 +9,8 @@ MUSIC_VOLUME = 0.15
 
 
 def render(background: Path, bg_start: float, cards: list, voice: Path, music, music_start: float,
-           style: dict, total: float, out: Path, on_progress=None) -> Path:
-    """cards: [(png_path, start_s, end_s)]. music: Path or None. on_progress gets a 0-1 fraction."""
+           style: dict, total: float, out: Path, on_progress=None, watermark=None) -> Path:
+    """cards: [(png_path, start_s, end_s)]. music, watermark: Path or None. on_progress gets a 0-1 fraction."""
     cmd = ["ffmpeg", "-v", "error", "-y", "-nostats", "-progress", "pipe:1"]
     if duration(background) < total:
         cmd += ["-stream_loop", "-1"]  # short footage: loop it
@@ -20,6 +20,8 @@ def render(background: Path, bg_start: float, cards: list, voice: Path, music, m
     cmd += ["-i", str(voice)]
     if music:
         cmd += ["-ss", f"{music_start:.2f}", "-t", f"{total:.2f}", "-i", str(music)]
+    if watermark:
+        cmd += ["-i", str(watermark)]
 
     # Drop to 30 fps first so every later filter handles half the frames of 60 fps footage.
     # Crop the landscape footage to 9:16, then scale to full size so cards overlay 1:1.
@@ -39,6 +41,12 @@ def render(background: Path, bg_start: float, cards: list, voice: Path, music, m
         filters.append(f"[v{i - 1}][{i}:v]overlay=x=(main_w-overlay_w)/2:y={y}"
                        f":enable=between(t\\,{start:.3f}\\,{end:.3f})[v{i}]")
 
+    video_out = f"v{len(cards)}"
+    if watermark:  # top centre: Shorts, Reels and TikTok put their own buttons down the right and along the bottom
+        mark_in = len(cards) + (3 if music else 2)
+        filters.append(f"[{video_out}][{mark_in}:v]overlay=x=(main_w-overlay_w)/2:y=150[vw]")
+        video_out = "vw"
+
     voice_in = len(cards) + 1
     if music:
         filters.append(f"[{voice_in + 1}:a]volume={MUSIC_VOLUME}[m];"
@@ -46,7 +54,7 @@ def render(background: Path, bg_start: float, cards: list, voice: Path, music, m
     else:
         filters.append(f"[{voice_in}:a]anull[a]")
 
-    cmd += ["-filter_complex", ";".join(filters), "-map", f"[v{len(cards)}]", "-map", "[a]",
+    cmd += ["-filter_complex", ";".join(filters), "-map", f"[{video_out}]", "-map", "[a]",
             "-t", f"{total:.2f}", "-r", "30", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out)]
 

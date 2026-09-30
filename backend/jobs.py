@@ -19,13 +19,18 @@ _jobs = {}
 _render_lock = threading.Lock()
 
 
-def start(db_path, user_id, title, body, voice, background, music, style) -> str:
+def start(db_path, user_id, title, body, voice, background, music, style, watermark="") -> str:
     job_id = uuid.uuid4().hex
     _jobs[job_id] = {"owner": user_id, "status": "queued", "percent": 0,
                      "stage": "Waiting for the previous render", "video_id": None, "error": None}
-    args = (job_id, db_path, user_id, title, body, voice, background, music, style)
+    args = (job_id, db_path, user_id, title, body, voice, background, music, style, watermark)
     threading.Thread(target=_run, args=args, daemon=True).start()
     return job_id
+
+
+def active(user_id) -> int:
+    """Renders of this user's that are queued or running, so limits count them too."""
+    return sum(1 for j in _jobs.values() if j["owner"] == user_id and j["status"] in ("queued", "running"))
 
 
 def get(job_id, user_id):
@@ -35,7 +40,7 @@ def get(job_id, user_id):
     return {k: v for k, v in job.items() if k != "owner"}
 
 
-def _run(job_id, db_path, user_id, title, body, voice, background, music, style):
+def _run(job_id, db_path, user_id, title, body, voice, background, music, style, watermark):
     job = _jobs[job_id]
 
     def progress(percent, stage):
@@ -45,7 +50,7 @@ def _run(job_id, db_path, user_id, title, body, voice, background, music, style)
         job.update(status="running", stage="Starting")
         try:
             out = make_video(title, body, voice, background, music, style,
-                             on_progress=progress, out_dir=user_dir(user_id))
+                             on_progress=progress, out_dir=user_dir(user_id), watermark=watermark)
             job["stage"] = "Saving to My Videos"
             with sqlite3.connect(db_path) as conn:
                 cur = conn.execute(
@@ -54,6 +59,7 @@ def _run(job_id, db_path, user_id, title, body, voice, background, music, style)
                     (user_id, out.name, " ".join(title.split()), body.strip(),
                      catalog.videos()[background].credit, round(duration(out), 1), db.now()))
                 video_id = cur.lastrowid
+                conn.execute("INSERT INTO renders (user_id, created_at) VALUES (?, ?)", (user_id, db.now()))
             _make_thumb(out, thumb_path(user_id, video_id))
             job.update(status="done", percent=100, stage="Done", video_id=video_id)
         except Exception as exc:  # report any failure to the page instead of hanging

@@ -22,6 +22,22 @@
 <div class="wrap narrow">
   <h1>Settings</h1>
 
+  <section class="card" id="billing">
+    <div class="provider-head">
+      <h2>Plan &amp; billing</h2>
+      <span class="badge on" id="planBadge"></span>
+    </div>
+    <div id="usage"></div>
+    <div class="billing-toggle small" role="radiogroup" aria-label="Billing period">
+      <button type="button" role="radio" aria-checked="true" data-period="monthly" class="on">Monthly</button>
+      <button type="button" role="radio" aria-checked="false" data-period="yearly">Yearly · 2 months free</button>
+    </div>
+    <div class="plan-list" id="planList"></div>
+    <p class="status" id="billingMsg" hidden></p>
+    <p class="meta">Online payment is coming soon. For now, pick a plan and the team switches it on for you,
+      usually within a day.</p>
+  </section>
+
   <section class="card">
     <h2>AI keys</h2>
     <p class="meta">Add a key for any AI you want to write scripts with. Your key is encrypted before it's stored,

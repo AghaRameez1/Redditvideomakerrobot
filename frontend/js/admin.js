@@ -177,14 +177,15 @@ function renderUsers() {
     <tr>
       <td><div class="who-cell">${esc(u.email)}${u.email === me.email ? ` <span class="meta">(you)</span>` : ""}</div>
         <div class="meta">${[u.name && esc(u.name), [u.has_password && "Email", u.google && "Google"].filter(Boolean).join(" + ")].filter(Boolean).join(" · ")}</div></td>
-      <td><span class="badge ${u.role === "user" ? "" : "on"}">${ROLE_NAMES[u.role] || esc(u.role)}</span></td>
-      <td>${fmtDay(u.created_at)}</td>
-      <td class="num">${u.videos}${u.videos ? `<div class="meta">${fmtMinutes(u.seconds)}</div>` : ""}</td>
-      <td class="num">${u.posts || "–"}</td>
-      <td>${u.last_video ? fmtDay(u.last_video) : "–"}</td>
-      <td>${u.ai_keys.length ? esc(u.ai_keys.map((k) => ({ anthropic: "Claude", openai: "ChatGPT", gemini: "Gemini" }[k] || k)).join(", ")) : "–"}</td>
-      <td>${u.youtube ? "Connected" : "–"}</td>
-      <td class="num">${u.disk_bytes ? fmtBytes(u.disk_bytes) : "–"}</td>
+      <td data-label="Role"><span class="badge ${u.role === "user" ? "" : "on"}">${ROLE_NAMES[u.role] || esc(u.role)}</span></td>
+      <td data-label="Plan">${esc(planName(u.plan))}</td>
+      <td data-label="Signed up">${fmtDay(u.created_at)}</td>
+      <td class="num" data-label="Videos">${u.videos}${u.videos ? `<div class="meta">${fmtMinutes(u.seconds)}</div>` : ""}</td>
+      <td class="num" data-label="Posted">${u.posts || "–"}</td>
+      <td data-label="Last video">${u.last_video ? fmtDay(u.last_video) : "–"}</td>
+      <td data-label="AI keys">${u.ai_keys.length ? esc(u.ai_keys.map((k) => ({ anthropic: "Claude", openai: "ChatGPT", gemini: "Gemini" }[k] || k)).join(", ")) : "–"}</td>
+      <td data-label="YouTube">${u.youtube ? "Connected" : "–"}</td>
+      <td class="num" data-label="Disk">${u.disk_bytes ? fmtBytes(u.disk_bytes) : "–"}</td>
       <td class="row-actions">${canManage(u) ? `
         <button type="button" class="ghost small" data-edit="${u.id}">Edit</button>
         ${u.email === me.email ? "" : `<button type="button" class="danger small" data-remove="${u.id}">Delete</button>`}` : ""}</td>
@@ -202,12 +203,177 @@ async function loadStats() {
     ["With an AI key", t.with_ai_key, t.users ? `${Math.round((100 * t.with_ai_key) / t.users)}% of users` : ""],
     ["Videos", t.videos, `${t.videos_7d} this week · ${fmtMinutes(t.seconds)} in total`],
     ["Posted to YouTube", t.posts_done, `${t.youtube_connections} channels connected${t.posts_failed ? ` · ${t.posts_failed} failed` : ""}`],
+    ["On a paid plan", (t.plans.creator || 0) + (t.plans.pro || 0),
+      `${t.plans.creator || 0} ${planName("creator")} · ${t.plans.pro || 0} ${planName("pro")}${t.pending_requests ? ` · ${t.pending_requests} waiting` : ""}`],
     ["Disk used", fmtBytes(t.disk_bytes), "videos and thumbnails"],
   ]);
   bars($("signupChart"), s.signups_by_day, "sign-up");
   bars($("videoChart"), s.videos_by_day, "video");
   users = s.users;
   renderUsers();
+}
+
+// ---------- plans ----------
+let planInfo = {};  // key -> {name, monthly, videos, watermark}
+const PLAN_ORDER = ["free", "creator", "pro"];
+const inOrder = (all) => PLAN_ORDER.filter((k) => all[k]).map((k) => [k, all[k]]);
+const planName = (key) => planInfo[key]?.name || key;
+
+async function loadRequests() {
+  const list = await api("/api/admin/plan-requests");
+  $("requestsCard").hidden = list.length === 0;
+  $("requestCount").textContent = `${list.length} waiting`;
+  $("requestList").innerHTML = list.map((r) => `
+    <div class="plan-row">
+      <div><strong>${esc(r.email)}</strong>
+        <div class="meta">${esc(planName(r.current_plan))} → ${esc(planName(r.plan))}, billed ${r.period} · asked ${fmtDay(r.created_at)}</div></div>
+      <div class="plan-price">${planInfo[r.plan] ? `$${r.period === "yearly" ? planInfo[r.plan].yearly : planInfo[r.plan].monthly}` : ""}</div>
+      <div class="plan-action">
+        <button type="button" class="primary small" data-approve="${r.id}">Approve</button>
+        <button type="button" class="ghost small" data-dismiss="${r.id}">Dismiss</button>
+      </div>
+    </div>`).join("");
+  document.querySelectorAll("[data-approve], [data-dismiss]").forEach((b) => (b.onclick = async () => {
+    const approve = "approve" in b.dataset;
+    try {
+      await api(`/api/admin/plan-requests/${approve ? b.dataset.approve : b.dataset.dismiss}/${approve ? "approve" : "dismiss"}`, { method: "POST" });
+    } catch (err) { alert(err.message); }
+    loadRequests(); loadStats();
+  }));
+}
+
+const plansCard = () => `
+  <section class="card" id="plansCard">
+    <h2>Plans and prices</h2>
+    <p class="meta">Shown on the home page and in Settings. Yearly price is 10 months, so 2 months free.
+      Staff (managers and admins) have no limit.</p>
+    <div class="table-wrap"><table class="users plans-edit">
+      <thead><tr><th>Plan</th><th>Name</th><th class="num">$ per month</th><th class="num">Videos per month</th><th>Watermark</th></tr></thead>
+      <tbody id="planRows"></tbody>
+    </table></div>
+    <div class="actions"><button type="button" class="primary small" id="savePlans">Save prices</button></div>
+    <p class="status" id="plansMsg" hidden></p>
+  </section>`;
+
+function renderPlanRows(all) {
+  $("planRows").innerHTML = inOrder(all).map(([k, p]) => `
+    <tr data-plan="${k}">
+      <td>${k}</td>
+      <td><input type="text" data-f="name" value="${esc(p.name)}" maxlength="30"></td>
+      <td class="num"><input type="number" data-f="monthly" value="${p.monthly}" min="0" step="0.01" ${k === "free" ? "disabled" : ""}></td>
+      <td class="num"><input type="number" data-f="videos" value="${p.videos}" min="1" step="1"></td>
+      <td><input type="checkbox" data-f="watermark" ${p.watermark ? "checked" : ""} aria-label="Watermark on ${esc(p.name)}"></td>
+    </tr>`).join("");
+}
+
+async function initPlans() {
+  renderPlanRows((await api("/api/admin/plans")).plans);
+  $("savePlans").onclick = async () => {
+    const body = {};
+    document.querySelectorAll("#planRows tr").forEach((tr) => {
+      const v = (f) => tr.querySelector(`[data-f="${f}"]`);
+      body[tr.dataset.plan] = { name: v("name").value, monthly: v("monthly").value, videos: v("videos").value, watermark: v("watermark").checked };
+    });
+    const msg = (t, e = false) => { $("plansMsg").hidden = false; $("plansMsg").textContent = t; $("plansMsg").classList.toggle("err", e); };
+    try {
+      const r = await api("/api/admin/plans", { method: "PUT", body });
+      renderPlanRows(r.plans);
+      planInfo = r.plans;
+      msg("Saved. The home page and Settings show the new prices now.");
+      renderUsers();
+    } catch (err) { msg(err.message, true); }
+  };
+}
+
+// ---------- payment settings (admins) ----------
+const CHECKOUT_LABELS = { creator_monthly: "Creator, monthly", creator_yearly: "Creator, yearly",
+                          pro_monthly: "Pro, monthly", pro_yearly: "Pro, yearly" };
+
+const paymentsCard = () => `
+  <section class="card" id="paymentsCard">
+    <div class="provider-head">
+      <h2>Payments</h2>
+      <span class="badge" id="payBadge"></span>
+    </div>
+    <p class="meta">Fill these in once the app is online. Saving them doesn't switch on card payments yet: that
+      part gets built after launch. Until then, people request a plan in Settings and you approve it under
+      Upgrade requests.</p>
+    <form id="payForm">
+      <div class="row">
+        <div><label for="payProvider">Payment service</label><select id="payProvider"></select></div>
+        <div><label for="payMode">Mode</label>
+          <select id="payMode"><option value="test">Test (no real money)</option><option value="live">Live</option></select></div>
+      </div>
+      <label for="payStore">Store or vendor ID</label>
+      <input type="text" id="payStore" autocomplete="off" spellcheck="false" placeholder="From your payment service's dashboard">
+      <label for="payKey">API key <span class="meta" id="payKeyHint"></span></label>
+      <input type="password" id="payKey" autocomplete="off" spellcheck="false" placeholder="Leave blank to keep the saved one">
+      <label for="payWebhook">Webhook signing secret <span class="meta" id="payWebhookHint"></span></label>
+      <input type="password" id="payWebhook" autocomplete="off" spellcheck="false" placeholder="Leave blank to keep the saved one">
+      <label>Webhook address to give the payment service</label>
+      <div class="copyrow"><code id="payWebhookUrl"></code>
+        <button type="button" class="ghost small" id="payCopy">Copy</button></div>
+      <p class="meta" id="payPublicNote"></p>
+      <label class="first-group">Checkout links</label>
+      <div class="checkout-grid" id="payCheckouts"></div>
+      <p class="err" id="payError" hidden></p>
+      <div class="actions">
+        <button type="submit" class="primary small" id="paySave">Save payment settings</button>
+        <button type="button" class="danger small" id="payClear">Clear all</button>
+      </div>
+      <p class="status" id="payMsg" hidden></p>
+    </form>
+  </section>`;
+
+function renderPayments(c) {
+  $("payProvider").innerHTML = Object.entries(c.providers).map(([k, label]) => `<option value="${k}">${esc(label)}</option>`).join("");
+  $("payProvider").value = c.provider;
+  $("payMode").value = c.mode;
+  $("payStore").value = c.store_id;
+  $("payKey").value = $("payWebhook").value = "";
+  $("payKeyHint").textContent = c.api_key_hint ? `(saved ${c.api_key_hint})` : "(not saved)";
+  $("payWebhookHint").textContent = c.webhook_secret_hint ? `(saved ${c.webhook_secret_hint})` : "(not saved)";
+  $("payWebhookUrl").textContent = c.webhook_url;
+  $("payPublicNote").textContent = c.public_site ? ""
+    : "This is a local address, which payment services can't reach. Open this page on your public https:// site to get the real one.";
+  $("payCheckouts").innerHTML = Object.entries(CHECKOUT_LABELS).map(([k, label]) => `
+    <div><label for="co-${k}">${label}</label>
+      <input type="url" id="co-${k}" data-checkout="${k}" value="${esc(c.checkout[k] || "")}" placeholder="https://…" spellcheck="false"></div>`).join("");
+  const filled = c.provider && (c.api_key_hint || Object.values(c.checkout).some(Boolean));
+  $("payBadge").textContent = filled ? `${c.providers[c.provider]} · ${c.mode === "live" ? "live" : "test"} · saved` : "Not set up";
+  $("payBadge").classList.toggle("on", Boolean(filled));
+}
+
+async function initPayments() {
+  renderPayments(await api("/api/admin/payments"));
+  const msg = (t, e = false) => {
+    $("payError").hidden = !e; $("payError").textContent = e ? t : "";
+    $("payMsg").hidden = e || !t; $("payMsg").textContent = e ? "" : t;
+  };
+  $("payProvider").onchange = () => {
+    $("payWebhookUrl").textContent = $("payWebhookUrl").textContent.replace(/[^/]+$/, $("payProvider").value || "provider");
+  };
+  $("payCopy").onclick = async () => {
+    try { await navigator.clipboard.writeText($("payWebhookUrl").textContent); $("payCopy").textContent = "Copied"; }
+    catch (_) { $("payCopy").textContent = "Select and copy"; }
+    setTimeout(() => ($("payCopy").textContent = "Copy"), 1500);
+  };
+  $("payForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const body = { provider: $("payProvider").value, mode: $("payMode").value, store_id: $("payStore").value,
+                   api_key: $("payKey").value, webhook_secret: $("payWebhook").value, checkout: {} };
+    document.querySelectorAll("[data-checkout]").forEach((i) => (body.checkout[i.dataset.checkout] = i.value));
+    if (body.mode === "live" && !confirm("Save in live mode? Use it only with your real, live keys.")) return;
+    $("paySave").disabled = true;
+    try { renderPayments(await api("/api/admin/payments", { method: "PUT", body })); msg("Saved."); }
+    catch (err) { msg(err.message, true); }
+    $("paySave").disabled = false;
+  });
+  $("payClear").onclick = async () => {
+    if (!confirm("Clear all payment settings, including the saved keys?")) return;
+    renderPayments(await api("/api/admin/payments", { method: "DELETE" }));
+    msg("Cleared.");
+  };
 }
 
 // ---------- auto-clean (admins) ----------
@@ -284,6 +450,8 @@ function openUser(u) {
   const roles = isAdmin() ? ["user", "manager", "admin"] : ["user"];
   $("uRole").innerHTML = roles.map((r) => `<option value="${r}">${ROLE_NAMES[r]}</option>`).join("");
   $("uRole").value = u ? u.role : "user";
+  $("uPlan").innerHTML = inOrder(planInfo).map(([k, p]) => `<option value="${k}">${esc(p.name)} (${p.videos} videos/month)</option>`).join("");
+  $("uPlan").value = u ? u.plan : "free";
   $("uRole").disabled = self || roles.length === 1;
   const describe = () => ($("uRoleNote").textContent = self
     ? "You can't change your own role. Ask another admin."
@@ -298,7 +466,7 @@ function openUser(u) {
 
 $("userForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const body = { email: $("uEmail").value, name: $("uName").value };
+  const body = { email: $("uEmail").value, name: $("uName").value, plan: $("uPlan").value };
   if ($("uPassword").value) body.password = $("uPassword").value;
   if (!$("uRole").disabled) body.role = $("uRole").value;
   if (editing && body.role === editing.role) delete body.role;
@@ -331,13 +499,15 @@ document.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => b.cl
 
 (async () => {
   me = await initTopbar();
+  planInfo = (await api("/api/plans")).plans.reduce((all, p) => ({ ...all, [p.key]: p }), {});
+  loadRequests();
   $("userFilter").addEventListener("input", renderUsers);
   $("refresh").onclick = loadStats;
   $("addUser").onclick = () => openUser(null);
   const jobs = [loadStats()];
   if (isAdmin()) {  // site settings are for admins only
-    $("services").innerHTML = cleanCard() + SERVICES.map(card).join("");
-    jobs.push(initClean(), ...SERVICES.map(async (s) => wire(s)(await api(`/api/admin/${s.key}`))));
+    $("services").innerHTML = plansCard() + paymentsCard() + cleanCard() + SERVICES.map(card).join("");
+    jobs.push(initPlans(), initPayments(), initClean(), ...SERVICES.map(async (s) => wire(s)(await api(`/api/admin/${s.key}`))));
   }
   await Promise.all(jobs);
 })();

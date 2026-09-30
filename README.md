@@ -50,6 +50,15 @@ give them roles, so you only need this command once. (`--role manager` gives the
   from this computer and keep the entry, its thumbnail and its YouTube link.
 - **Connected accounts:** in **Settings**, users connect YouTube once by signing in with Google
   (OAuth). An API key can't be used to post. Tokens are encrypted like AI keys.
+- **Plans:** Free (3 videos a month, with a small "Made with Script Studio" label), Creator ($9, 60
+  videos) and Pro ($24, 300 videos); yearly is 10 months. The limit counts renders since the 1st
+  (UTC), so deleting a video doesn't free a slot. Staff have no limit. There's **no payment provider
+  yet**: users pick a plan in **Settings → Plan & billing**, and an admin or manager approves it under
+  **Admin → Upgrade requests** after being paid. Admins can change prices and limits in **Admin**.
+  **Admin → Payments** (admins) stores the payment service settings for later: service, test or live
+  mode, store ID, API key and webhook secret (encrypted), checkout links, and the webhook address.
+  Saving them doesn't switch on card payments yet; that's built once the app is public.
+- **Works on phones:** every page fits a phone screen, with a Menu button for the top bar.
 - **Roles:** **User** makes videos. **Manager** also sees the admin page and can add, edit and
   remove users. **Admin** can do everything, including giving roles and changing site settings.
   Nobody can change their own role, and the last admin can't be removed or demoted.
@@ -128,6 +137,37 @@ What you'll see: passwords are scrypt hashes, and `api_keys.key_enc` / `connecti
 encrypted, so none of them can be read back. That's deliberate. Avoid editing rows while the app is running, and copy the file
 before any manual change.
 
+## Deploying with Docker
+
+`docker-compose.yml` runs the app (gunicorn, one worker) behind **Caddy**, which gets and renews a
+free HTTPS certificate automatically. Use a server with at least 2 CPU cores and 4 GB of RAM.
+
+1. Point your domain's DNS (an `A` record) at the server, and open ports 80 and 443.
+2. Install Docker, copy the project to the server, then create the settings file:
+   ```bash
+   cp .env.example .env
+   python3 -c "import secrets; print(secrets.token_urlsafe(48))"                                # SECRET_KEY
+   python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"   # ENCRYPTION_KEY
+   ```
+   Put your domain and the two keys in `.env`. **Keep a copy of `ENCRYPTION_KEY` somewhere safe.**
+3. Start it, then make yourself an admin after signing up on the site:
+   ```bash
+   docker compose up -d --build
+   docker compose exec app flask --app wsgi make-admin you@example.com
+   ```
+4. Add the https redirect URIs shown on the Admin page to Google Cloud.
+
+Everyday commands: `docker compose logs -f app` (logs), `git pull && docker compose up -d --build`
+(update), `docker compose down` (stop; data is kept).
+
+**Where data lives:** the `data` volume holds the database and users' videos, so **back it up**, for
+example with `docker run --rm -v scriptstudio_data:/data -v "$PWD":/backup busybox tar czf
+/backup/data.tgz /data`. The
+`backgrounds` volume caches downloaded gameplay and can be re-downloaded.
+
+To try it on your own computer first, set `DOMAIN=localhost` and open https://localhost (your
+browser warns about the local certificate).
+
 ## Going live
 
 The app runs as a normal website, but several things must change for the internet:
@@ -138,18 +178,20 @@ The app runs as a normal website, but several things must change for the interne
   `ENCRYPTION_KEY`:** if you lose it, every saved AI key and account connection becomes unreadable.
 - Add your https redirect URIs in Google Cloud, and complete Google's YouTube audit so uploads
   can be public.
-- Serve it over **HTTPS** behind a reverse proxy (Caddy or nginx) with `TRUST_PROXY=1`, using a
-  real WSGI server such as gunicorn rather than `python app.py`.
+- Serve it over **HTTPS** behind a reverse proxy with `TRUST_PROXY=1`, using gunicorn with **one**
+  worker (`wsgi.py`), not `python app.py`. The Docker setup above does all of this.
 - Renders use a lot of CPU and run one at a time, so a busy site needs a bigger server or a
   job queue. Videos are stored on local disk (`RESULTS_DIR`), so plan disk space, or move them
   to object storage.
 - Still to build before real users: email verification and password reset (these need an email
-  service), plus usage limits.
+  service).
 
 ## Project layout
 
 ```
 app.py              start the web app
+wsgi.py             production entry point (gunicorn), used by the Docker image
+Dockerfile, docker-compose.yml, Caddyfile, .env.example   Docker deployment with HTTPS
 make_video.py       command-line entry point (no accounts)
 frontend/           HTML, CSS and JS only; talks to the backend over JSON
   landing.html        public home page (signed-out visitors)
@@ -157,13 +199,15 @@ frontend/           HTML, CSS and JS only; talks to the backend over JSON
   index.html          the studio (dashboard)
   library.html        My videos: play, download, share
   settings.html       AI keys, connected accounts, account
-  admin.html          admins and managers: overview, users, auto-clean, Google settings
+  admin.html          admins and managers: overview, requests, users, plans, auto-clean, Google
 backend/            Flask app
   auth.py             sign-up, sign-in, Google, sign out, delete account
   api.py              studio + AI-key API, all scoped to the signed-in user
   library.py          My videos + share endpoints
   connections.py      Connect / disconnect YouTube (OAuth)
   admin.py            admin page API: stats, users and roles, auto-clean, Google client
+  billing.py          public plans, each user's plan and usage, upgrade requests
+  plans.py            plan prices, monthly limits and the free-plan watermark
   cleanup.py          auto-clean of posted videos (background check + `flask cleanup`)
   site_settings.py    settings saved from the admin page, encrypted
   publish/            youtube.py (Data API upload)

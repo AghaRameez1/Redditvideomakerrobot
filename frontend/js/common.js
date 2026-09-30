@@ -26,6 +26,7 @@ async function initTopbar() {
   if (!user) return (location.href = "/login");
   $("who").textContent = user.name || user.email;
   if ($("adminLink")) $("adminLink").hidden = !user.can_manage;
+  addMenuButton();
   $("signout").onclick = async () => { await api("/api/auth/logout", { method: "POST" }); location.href = "/login"; };
   return user;
 }
@@ -37,3 +38,22 @@ const fmtMinutes = (seconds) => seconds < 60 ? `${Math.round(seconds)} s` : `${(
 const statTiles = (tiles) => tiles.map(([label, value, note]) => `
   <div class="stat"><span class="stat-value">${esc(value)}</span><span class="stat-label">${esc(label)}</span>
     ${note ? `<span class="stat-note">${esc(note)}</span>` : ""}</div>`).join("");
+
+// On phones the top-bar links fold into a Menu button.
+function addMenuButton() {
+  const bar = document.querySelector(".topbar"), nav = bar?.querySelector("nav");
+  if (!nav || bar.querySelector(".menu-btn")) return;
+  nav.id = nav.id || "mainNav";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "ghost small menu-btn";
+  btn.textContent = "Menu";
+  btn.setAttribute("aria-expanded", "false");
+  btn.setAttribute("aria-controls", nav.id);
+  btn.onclick = () => {
+    const open = bar.classList.toggle("open");
+    btn.setAttribute("aria-expanded", String(open));
+    btn.textContent = open ? "Close" : "Menu";
+  };
+  bar.insertBefore(btn, nav);
+}

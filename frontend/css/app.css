@@ -240,3 +240,74 @@ table.users .meta { margin-top: 2px; }
 #services:not(:empty) { margin-top: 20px; }
 .keyrow button { white-space: nowrap; }
 .home-link { color: inherit; text-decoration: none; }
+
+/* ---------- plan & billing (Settings) ---------- */
+.usage-row { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; margin: 4px 0 8px; flex-wrap: wrap; }
+.fill.full { background: var(--err); }
+.billing-toggle { display: inline-flex; gap: 4px; padding: 4px; margin: 16px 0 6px; border-radius: 10px;
+                  background: var(--bg); border: 1px solid var(--line); }
+.billing-toggle button { background: none; color: var(--muted); padding: 6px 12px; font-size: 13px; border-radius: 7px; }
+.billing-toggle button.on { background: var(--panel); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
+.plan-list { display: grid; gap: 8px; margin: 10px 0 12px; }
+.plan-row { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; padding: 12px 14px;
+            border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.plan-row.current { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.plan-price { font-weight: 650; white-space: nowrap; }
+.plan-action { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+@media (max-width: 560px) {
+  .plan-row { grid-template-columns: 1fr auto; }
+  .plan-action { grid-column: 1 / -1; justify-content: flex-start; }
+}
+.usage-line { text-align: center; margin: 10px 0 0; } .usage-line a, .err a { color: var(--accent); }
+.plans-edit input[type=text], .plans-edit input[type=number] { width: 100%; min-width: 90px; background: var(--bg); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 13px; }
+.plans-edit input[type=number] { text-align: right; max-width: 120px; }
+.plans-edit input:disabled { opacity: .5; }
+#requestsCard .plan-row + .plan-row { margin-top: 8px; }
+
+/* ---------- phone fixes ---------- */
+fieldset { min-width: 0; }                  /* browsers default fieldsets to their content width */
+.grid > *, .row > *, .row3 > * { min-width: 0; }
+.table-wrap { position: relative; }         /* keeps the hidden table caption inside the scroll box */
+.ctl { min-width: 0; } .ctl input[type=range] { min-width: 0; width: 100%; }
+
+/* ---------- phones ---------- */
+.menu-btn { display: none; }
+@media (max-width: 640px) {
+  .topbar { padding: 12px 16px; }
+  .menu-btn { display: inline-flex; }
+  .topbar nav { display: none; width: 100%; flex-direction: column; align-items: stretch; gap: 0; padding-top: 6px; }
+  .topbar.open nav { display: flex; }
+  .topbar nav a { padding: 12px 2px; border-top: 1px solid var(--line); font-size: 15px; }
+  .topbar nav .who { padding: 12px 2px 6px; border-top: 1px solid var(--line); max-width: none; }
+  .topbar nav #signout { align-self: flex-start; margin: 6px 0 4px; }
+  .wrap { padding: 20px 16px 40px; }
+  .card { padding: 16px; }
+  .row, .row3 { grid-template-columns: 1fr; }
+  .ctl { flex-wrap: wrap; row-gap: 8px; }
+  .ctl input[type=range] { flex: 1 1 120px; }
+  .ai-row { grid-template-columns: 1fr; }
+  .ai-row button { grid-column: auto; }
+  .provider-head { flex-wrap: wrap; }
+  .head-actions { flex: 1 1 100%; }
+  #userFilter { flex: 1 1 auto; width: auto; }
+  .plan-row > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .dlg { width: calc(100vw - 24px); max-width: none; }
+
+  /* users table becomes one card per person */
+  table.users.cards thead { display: none; }
+  table.users.cards, table.users.cards tbody, table.users.cards tr, table.users.cards td { display: block; width: 100%; }
+  table.users.cards tr { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: var(--bg); }
+  table.users.cards td { border: 0; padding: 4px 0; white-space: normal; text-align: left; display: flex; align-items: baseline; gap: 6px; }
+  table.users.cards td[data-label]::before { content: attr(data-label); color: var(--muted); margin-right: auto; }
+  table.users.cards td:first-child { display: block; padding-bottom: 8px; }
+  table.users.cards td.row-actions { justify-content: flex-start; padding-top: 8px; }
+  table.users.cards .num .meta { display: inline; margin-left: 6px; }
+}
+
+/* ---------- payment settings (Admin) ---------- */
+.checkout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.checkout-grid label { margin-top: 6px; }
+input[type=url] { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line);
+                  border-radius: 8px; padding: 10px 12px; font: inherit; font-size: 14px; }
+@media (max-width: 640px) { .checkout-grid { grid-template-columns: 1fr; } }

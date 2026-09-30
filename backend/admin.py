@@ -3,6 +3,7 @@
 Managers see the statistics and manage plain users. Only admins change roles above "user",
 manage other managers or admins, and change the Google settings.
 """
+import json
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -10,7 +11,7 @@ import requests
 from flask import Blueprint, abort, current_app, jsonify, request, url_for
 from werkzeug.security import generate_password_hash
 
-from . import cleanup, db, site_settings
+from . import cleanup, db, plans, site_settings
 from .auth import EMAIL_PATTERN, MIN_PASSWORD, is_last_admin, remove_user
 from .security import ROLES, api_role_required, current_user, has_role
 from .storage import disk_usage
@@ -157,7 +158,7 @@ def stats():
     conn = db.get()
     one = lambda sql: conn.execute(sql).fetchone()[0]
     users = conn.execute(f"""
-        SELECT u.id, u.email, u.name, u.created_at, u.role,
+        SELECT u.id, u.email, u.name, u.created_at, u.role, u.plan,
                u.password_hash IS NOT NULL AS has_password, u.google_sub IS NOT NULL AS google,
                (SELECT COUNT(*) FROM videos v WHERE v.user_id = u.id) AS videos,
                (SELECT COALESCE(SUM(duration), 0) FROM videos v WHERE v.user_id = u.id) AS seconds,
@@ -189,6 +190,8 @@ def stats():
             "posts_done": one("SELECT COUNT(*) FROM shares WHERE status = 'done'"),
             "posts_failed": one("SELECT COUNT(*) FROM shares WHERE status = 'error'"),
             "disk_bytes": sum(p["disk_bytes"] for p in people),
+            "plans": {k: sum(p["plan"] == k for p in people) for k in plans.ORDER},
+            "pending_requests": one("SELECT COUNT(*) FROM plan_requests WHERE status = 'pending'"),
         },
         "signups_by_day": _per_day(conn, "users"),
         "videos_by_day": _per_day(conn, "videos"),
@@ -231,6 +234,11 @@ def _clean(data, creating: bool):
         fields["password_hash"] = generate_password_hash(password)
     elif creating and not site_settings.google_enabled():
         return fields, "Set a password. Without one they could only sign in with Google, which isn't set up."
+    if creating or "plan" in data:
+        plan = data.get("plan") or "free"
+        if plan not in plans.ORDER:
+            return fields, "Unknown plan."
+        fields["plan"] = plan
     if creating or "role" in data:
         role = data.get("role") or "user"
         if role not in _assignable(current_user()):
@@ -252,8 +260,8 @@ def create_user():
     if _email_taken(fields["email"]):
         return jsonify(error="An account with this email already exists."), 409
     conn = db.get()
-    uid = conn.execute("INSERT INTO users (email, name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)",
-                       (fields["email"], fields["name"], fields.get("password_hash"), fields["role"],
+    uid = conn.execute("INSERT INTO users (email, name, password_hash, role, plan, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                       (fields["email"], fields["name"], fields.get("password_hash"), fields["role"], fields["plan"],
                         db.now())).lastrowid
     conn.commit()
     return jsonify(id=uid), 201
@@ -336,3 +344,125 @@ def run_cleanup():
     if not result["ran"]:
         return jsonify(error="Auto-clean is off. Pick when to remove files first."), 400
     return jsonify({**_cleanup_status(), "removed": result["removed"]})
+
+
+# ---------- plans, prices and upgrade requests ----------
+
+@bp.get("/api/admin/plans")
+@api_role_required("admin")
+def get_plans():
+    return jsonify(plans=plans.all_plans(), yearly_months=plans.YEARLY_MONTHS)
+
+
+@bp.put("/api/admin/plans")
+@api_role_required("admin")
+def save_plans():
+    error = plans.save_plans(request.get_json(force=True) or {}, current_user()["id"])
+    if error:
+        return jsonify(error=error), 400
+    return get_plans()
+
+
+@bp.get("/api/admin/plan-requests")
+@api_role_required("manager")
+def plan_requests():
+    rows = db.get().execute(
+        "SELECT r.id, r.plan, r.period, r.created_at, u.id AS user_id, u.email, u.name, u.plan AS current_plan "
+        "FROM plan_requests r JOIN users u ON u.id = r.user_id WHERE r.status = 'pending' ORDER BY r.id").fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@bp.post("/api/admin/plan-requests/<int:request_id>/<decision>")
+@api_role_required("manager")
+def decide_request(request_id, decision):
+    if decision not in ("approve", "dismiss"):
+        abort(404)
+    row = db.get().execute("SELECT * FROM plan_requests WHERE id = ? AND status = 'pending'", (request_id,)).fetchone()
+    if not row:
+        return jsonify(error="That request was already handled."), 404
+    _user, error_response = _target(row["user_id"])
+    if error_response:
+        return error_response
+    conn = db.get()
+    if decision == "approve":
+        conn.execute("UPDATE users SET plan = ? WHERE id = ?", (row["plan"], row["user_id"]))
+    conn.execute("UPDATE plan_requests SET status = ?, decided_at = ?, decided_by = ? WHERE id = ?",
+                 ("approved" if decision == "approve" else "dismissed", db.now(), current_user()["id"], request_id))
+    conn.commit()
+    return plan_requests()
+
+
+# ---------- payment settings (stored now, used once online checkout is built) ----------
+
+PAYMENT_PROVIDERS = {"": "Not chosen", "lemonsqueezy": "Lemon Squeezy", "paddle": "Paddle", "other": "Other"}
+CHECKOUTS = ("creator_monthly", "creator_yearly", "pro_monthly", "pro_yearly")
+PAYMENT_SECRETS = {"api_key": "payments_api_key", "webhook_secret": "payments_webhook_secret"}
+PAYMENTS = "payments"
+
+
+def _payment_config() -> dict:
+    try:
+        saved = json.loads(site_settings.get_value(PAYMENTS) or "{}")
+    except ValueError:
+        saved = {}
+    return {"provider": saved.get("provider", ""), "mode": saved.get("mode", "test"),
+            "store_id": saved.get("store_id", ""), "checkout": {k: saved.get("checkout", {}).get(k, "") for k in CHECKOUTS}}
+
+
+def _payments_status():
+    config = _payment_config()
+    row = db.get().execute("SELECT s.updated_at, u.email FROM site_settings s LEFT JOIN users u ON u.id = s.updated_by "
+                           "WHERE s.key = ?", (PAYMENTS,)).fetchone()
+    provider = config["provider"] or "provider"
+    return {**config, "providers": PAYMENT_PROVIDERS,
+            **{f"{name}_hint": _mask(site_settings.get_value(key)) for name, key in PAYMENT_SECRETS.items()},
+            # Where the provider will send "paid / renewed / cancelled" notices, once that's built.
+            "webhook_url": f"{request.host_url}api/billing/webhook/{provider}",
+            "public_site": request.scheme == "https",
+            "updated_at": row["updated_at"] if row else None, "updated_by": row["email"] if row else None}
+
+
+@bp.get("/api/admin/payments")
+@api_role_required("admin")
+def get_payments():
+    return jsonify(_payments_status())
+
+
+@bp.put("/api/admin/payments")
+@api_role_required("admin")
+def save_payments():
+    data = request.get_json(force=True) or {}
+    config = _payment_config()
+    if "provider" in data:
+        if data["provider"] not in PAYMENT_PROVIDERS:
+            return jsonify(error="Pick one of the listed payment services."), 400
+        config["provider"] = data["provider"]
+    if "mode" in data:
+        if data["mode"] not in ("test", "live"):
+            return jsonify(error="Mode must be test or live."), 400
+        config["mode"] = data["mode"]
+    if "store_id" in data:
+        config["store_id"] = str(data["store_id"] or "").strip()[:100]
+    for key, url in (data.get("checkout") or {}).items():
+        if key not in CHECKOUTS:
+            continue
+        url = str(url or "").strip()
+        if url and not re.match(r"^https://[^\s/]+\.[^\s/]+/\S*$", url):
+            return jsonify(error="Checkout links must be full https:// addresses from your payment service."), 400
+        config["checkout"][key] = url[:500]
+    for name, key in PAYMENT_SECRETS.items():
+        value = str(data.get(name) or "").strip()
+        if value:  # blank means "keep what's saved"
+            site_settings.set_value(key, value[:500], current_user()["id"])
+        if data.get(f"clear_{name}"):
+            site_settings.set_value(key, "")
+    site_settings.set_value(PAYMENTS, json.dumps(config), current_user()["id"])
+    return jsonify(_payments_status())
+
+
+@bp.delete("/api/admin/payments")
+@api_role_required("admin")
+def clear_payments():
+    for key in (PAYMENTS, *PAYMENT_SECRETS.values()):
+        site_settings.set_value(key, "")
+    return jsonify(_payments_status())

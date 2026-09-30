@@ -34,6 +34,15 @@
     </div>
   </section>
 
+  <section class="card" id="requestsCard" hidden>
+    <div class="provider-head">
+      <h2>Upgrade requests</h2>
+      <span class="badge on" id="requestCount"></span>
+    </div>
+    <p class="meta">People who picked a paid plan in Settings. Check they've paid you, then approve to switch their plan on.</p>
+    <div id="requestList"></div>
+  </section>
+
   <section class="card">
     <div class="provider-head">
       <h2>Users</h2>
@@ -43,8 +52,8 @@
       </div>
     </div>
     <div class="table-wrap">
-      <table class="users">
-        <thead><tr><th>User</th><th>Role</th><th>Signed up</th><th class="num">Videos</th>
+      <table class="users cards">
+        <thead><tr><th>User</th><th>Role</th><th>Plan</th><th>Signed up</th><th class="num">Videos</th>
           <th class="num">Posted</th><th>Last video</th><th>AI keys</th><th>YouTube</th><th class="num">Disk</th><th><span class="sr-only">Actions</span></th></tr></thead>
         <tbody id="userRows"></tbody>
       </table>
@@ -66,6 +75,8 @@
     <label for="uPassword" id="uPasswordLabel">Password</label>
     <input type="password" id="uPassword" autocomplete="new-password">
     <p class="meta" id="uPasswordNote"></p>
+    <label for="uPlan">Plan</label>
+    <select id="uPlan"></select>
     <label for="uRole">Role</label>
     <select id="uRole"></select>
     <p class="meta" id="uRoleNote"></p>

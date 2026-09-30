@@ -6,7 +6,7 @@ from pathlib import Path
 
 from . import catalog
 from .backgrounds import ensure_downloaded, random_start
-from .cards import render_card, resolve_style
+from .cards import render_card, render_watermark, resolve_style
 from .paths import RESULTS, TEMP, WIDTH
 from .render import render
 from .script import displayable, safe_filename, speakable, split_sentences
@@ -16,8 +16,11 @@ DEFAULT_VOICE = "google:com"
 
 
 def make_video(title: str, body: str, voice: str = DEFAULT_VOICE, background: str = "minecraft",
-               music: str = "lofi", style: dict = None, on_progress=None, out_dir: Path = RESULTS) -> Path:
+               music: str = "lofi", style: dict = None, on_progress=None, out_dir: Path = RESULTS,
+               watermark: str = "") -> Path:
     """Build a vertical video and return its path in out_dir (default: results/).
+
+    watermark: optional small label drawn in a corner (used for free-plan videos).
 
     on_progress(percent, stage) is called as work moves along (percent is 0-100).
     """
@@ -55,6 +58,11 @@ def make_video(title: str, body: str, voice: str = DEFAULT_VOICE, background: st
             render_card(displayable(text), style, WIDTH, png, bold=True if i == 0 else None)
             cards.append((png, start, end))
 
+        mark = None
+        if watermark:
+            mark = work / "watermark.png"
+            render_watermark(watermark, mark)
+
         # 3. Backgrounds (downloaded from YouTube on first use, then cached).
         bg = videos[background]
         if not bg.downloaded:
@@ -73,7 +81,7 @@ def make_video(title: str, body: str, voice: str = DEFAULT_VOICE, background: st
         out.parent.mkdir(parents=True, exist_ok=True)
         render(bg.path, random_start(bg.path, total), cards, voice_track,
                track.path if track else None, random_start(track.path, total) if track else 0.0,
-               style, total, out, on_progress=lambda f: report(50 + round(49 * f), "Rendering"))
+               style, total, out, on_progress=lambda f: report(50 + round(49 * f), "Rendering"), watermark=mark)
         report(100, "Done")
         return out
     finally:

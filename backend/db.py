@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     email_verified  INTEGER NOT NULL DEFAULT 0,
     session_version INTEGER NOT NULL DEFAULT 1,  -- bump to sign out every device
     role            TEXT NOT NULL DEFAULT 'user',  -- user | manager | admin (see security.ROLES)
+    plan            TEXT NOT NULL DEFAULT 'free',  -- free | creator | pro (see plans.py)
     created_at      TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS api_keys (
@@ -59,6 +60,21 @@ CREATE TABLE IF NOT EXISTS shares (
     error       TEXT,
     created_at  TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS renders (      -- one row per finished render, for monthly plan limits
+    id          INTEGER PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS plan_requests (  -- "upgrade me" requests, until online payment exists
+    id          INTEGER PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    plan        TEXT NOT NULL,
+    period      TEXT NOT NULL,            -- monthly | yearly
+    status      TEXT NOT NULL,            -- pending | approved | dismissed | cancelled
+    created_at  TEXT NOT NULL,
+    decided_at  TEXT,
+    decided_by  INTEGER
+);
 CREATE TABLE IF NOT EXISTS site_settings (  -- set on the admin page
     key         TEXT PRIMARY KEY,
     value_enc   BLOB NOT NULL,            -- encrypted
@@ -92,6 +108,7 @@ def init(app):
         conn.executescript(SCHEMA)
         # Columns added after the first release, for existing databases.
         for table, column, spec in (("users", "role", "TEXT NOT NULL DEFAULT 'user'"),
+                                    ("users", "plan", "TEXT NOT NULL DEFAULT 'free'"),
                                     ("videos", "file_removed_at", "TEXT")):
             if column not in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {spec}")

@@ -1,0 +1,14 @@
+# Keep secrets, data and local clutter out of the image.
+.git
+.venv
+venv
+__pycache__/
+*.pyc
+instance/
+results/
+assets/
+.env
+*.log
+.DS_Store
+.idea
+.vscode

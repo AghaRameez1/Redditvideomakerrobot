@@ -1,0 +1,38 @@
+# Script Studio + Caddy (automatic HTTPS). Setup: README, "Deploying with Docker".
+#   cp .env.example .env    # then fill it in
+#   docker compose up -d --build
+name: scriptstudio                # fixed name, so volumes are scriptstudio_data etc. wherever the folder is
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TRUST_PROXY: "1"            # Caddy sits in front and passes the real https address on
+    volumes:
+      - data:/data                # database, secret settings and users' videos: back this up
+      - backgrounds:/app/assets/backgrounds   # downloaded gameplay and music (several GB, re-downloadable)
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data          # HTTPS certificates
+      - caddy_config:/config
+
+volumes:
+  data:
+  backgrounds:
+  caddy_data:
+  caddy_config:

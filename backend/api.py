@@ -9,7 +9,7 @@ from engine.cards import DEFAULT_STYLE
 from engine.paths import BACKGROUNDS, FONTS
 from engine.tts import available_voices
 
-from . import db, jobs
+from . import db, jobs, plans
 from .security import api_login_required, current_user, decrypt, encrypt
 
 bp = Blueprint("api", __name__)
@@ -52,9 +52,14 @@ def create_job():
     music = data.get("music")
     if music != "none" and music not in catalog.music():
         return jsonify(error="Unknown music."), 400
+    use = plans.usage(current_user(), running=jobs.active(_uid()))
+    if use["left"] == 0:
+        return jsonify(error=f"You've used all {use['limit']} videos on your plan this month. Upgrade in "
+                             "Settings, or wait until the 1st.", upgrade=True), 403
     style = data.get("style") if isinstance(data.get("style"), dict) else {}
     job_id = jobs.start(current_app.config["DATABASE_PATH"], _uid(), title, body, voice,
-                        data["background"], music, style)
+                        data["background"], music, style,
+                        watermark=plans.WATERMARK if use["watermark"] else "")
     return jsonify(id=job_id)
 
 
