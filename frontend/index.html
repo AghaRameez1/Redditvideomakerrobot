@@ -62,6 +62,18 @@
           <button type="button" class="ghost" data-preset="captions">Captions</button>
           <button type="button" class="ghost" data-preset="light">Light card</button>
           <button type="button" class="ghost" data-preset="bold">Bold yellow</button>
+          <button type="button" class="ghost" data-preset="wordpop">Word pop</button>
+        </div>
+
+        <span class="lbl">Captions</span>
+        <div class="row">
+          <div class="ctl"><select id="captions" aria-label="Caption style">
+            <option value="cards">One card per sentence</option>
+            <option value="words">Word by word</option>
+          </select></div>
+          <div class="ctl" id="wordCtl"><input type="color" id="highlight_color" title="Highlight colour for the spoken word">
+            <span class="meta">Words at once</span>
+            <input type="range" id="words_at_once" min="1" max="5"><output data-for="words_at_once"></output></div>
         </div>
 
         <span class="lbl">Background</span>
@@ -128,6 +140,26 @@
     </div>
   </div>
 </div>
+<!-- your own footage -->
+<dialog id="footageDlg" class="dlg">
+  <h2>Your footage</h2>
+  <p class="meta">Upload your own background clips: gameplay you recorded, b-roll, anything you have the rights
+    to. Any shape works; it's cropped to 9:16 from the centre. MP4, MOV, WebM or MKV, up to 500 MB.</p>
+  <div id="footageList" class="footage-list"></div>
+  <p class="meta" id="footageSpace"></p>
+  <form id="footageForm">
+    <label for="footageFile" class="first">Video file</label>
+    <input type="file" id="footageFile" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.mp4,.mov,.m4v,.webm,.mkv">
+    <label class="check rights"><input type="checkbox" id="footageRights"> I own this footage or have permission to use it</label>
+    <div class="bar" id="footageBar" hidden><div class="fill" id="footageFill"></div></div>
+    <p class="err" id="footageError" hidden></p>
+    <div class="actions">
+      <button type="submit" class="primary small" id="footageGo">Upload</button>
+      <button type="button" class="ghost" data-close>Close</button>
+    </div>
+  </form>
+</dialog>
+
 <script src="/static/js/common.js"></script>
 <script src="/static/js/app.js"></script>
 </body>

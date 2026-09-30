@@ -50,5 +50,6 @@ def load() -> dict:
         "SESSION_COOKIE_SAMESITE": "Lax",
         "SESSION_COOKIE_SECURE": PRODUCTION,
         "PERMANENT_SESSION_LIFETIME": 60 * 60 * 24 * 30,
-        "MAX_CONTENT_LENGTH": 1024 * 1024,  # requests are small JSON; refuse anything large
+        # Footage uploads may be large; every other request is small JSON (security.py limits those to 1 MB).
+        "MAX_CONTENT_LENGTH": 520 * 1024 * 1024,
     }

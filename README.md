@@ -42,6 +42,17 @@ give them roles, so you only need this command once. (`--role manager` gives the
   a model. Keys are checked before saving (free), encrypted in the database, and never sent back
   to the browser. The AI company bills the user's own account. The server never uses its own key.
 - **Studio:** voice, background, music, and the card look, with a live preview and progress bar.
+  Renders run on the server, so refreshing or closing the page doesn't stop them: the Studio picks
+  the progress back up, and My videos shows a "rendering" card until the video is ready.
+- **Your own footage:** upload background clips (MP4, MOV, WebM or MKV, up to 500 MB each, 20 clips
+  and 3 GB per person) after confirming you have the rights. Any shape works; it's cropped to 9:16
+  from the centre. Using your own footage avoids relying on other creators' gameplay.
+- **Word-by-word captions:** the "Word by word" caption mode (or the **Word pop** preset) shows 1-5
+  words at a time and highlights each word as it's spoken. The voices don't report word timings, so
+  timing is estimated from word length: close, not exact.
+- **Scheduled posts:** in the YouTube share dialog, pick **Schedule** and a time (15 minutes to 6
+  months ahead). The video uploads straight away as private, and YouTube publishes it at that time
+  itself, even if this app is off.
 - **My videos:** a stats strip (videos made, total length, how many are posted to YouTube, space
   used), then every finished video, with a thumbnail, playback, download, delete, and
   **Share to YouTube** with a live upload status and a link to the post. The
@@ -203,6 +214,7 @@ frontend/           HTML, CSS and JS only; talks to the backend over JSON
 backend/            Flask app
   auth.py             sign-up, sign-in, Google, sign out, delete account
   api.py              studio + AI-key API, all scoped to the signed-in user
+  footage.py          users' own background clips: upload, list, delete
   library.py          My videos + share endpoints
   connections.py      Connect / disconnect YouTube (OAuth)
   admin.py            admin page API: stats, users and roles, auto-clean, Google client

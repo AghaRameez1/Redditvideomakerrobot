@@ -2,6 +2,7 @@
 import json
 
 from flask import Blueprint, abort, current_app, jsonify, request, send_file
+from werkzeug.exceptions import NotFound
 
 from engine import ai, catalog
 from engine.backgrounds import preview_frame
@@ -11,6 +12,7 @@ from engine.tts import available_voices
 
 from . import db, jobs, plans
 from .security import api_login_required, current_user, decrypt, encrypt
+from .storage import owned_footage
 
 bp = Blueprint("api", __name__)
 
@@ -47,7 +49,13 @@ def create_job():
     voice = data.get("voice")
     if voice not in {k for k, _ in available_voices()}:
         return jsonify(error="Unknown voice."), 400
-    if data.get("background") not in catalog.videos():
+    background, footage_path = data.get("background") or "", None
+    if background.startswith("upload:"):  # the user's own footage
+        try:
+            _row, footage_path = owned_footage(_uid(), int(background.split(":", 1)[1]))
+        except (ValueError, NotFound):
+            return jsonify(error="That footage isn't available any more. Pick another background."), 400
+    elif background not in catalog.videos():
         return jsonify(error="Unknown background."), 400
     music = data.get("music")
     if music != "none" and music not in catalog.music():
@@ -58,9 +66,16 @@ def create_job():
                              "Settings, or wait until the 1st.", upgrade=True), 403
     style = data.get("style") if isinstance(data.get("style"), dict) else {}
     job_id = jobs.start(current_app.config["DATABASE_PATH"], _uid(), title, body, voice,
-                        data["background"], music, style,
-                        watermark=plans.WATERMARK if use["watermark"] else "")
+                        background, music, style,
+                        watermark=plans.WATERMARK if use["watermark"] else "", background_path=footage_path)
     return jsonify(id=job_id)
+
+
+@bp.get("/api/jobs")
+@api_login_required
+def my_jobs():
+    """Renders still running, so the Studio and My videos can pick them up after a reload."""
+    return jsonify(jobs.for_user(_uid()))
 
 
 @bp.get("/api/jobs/<job_id>")

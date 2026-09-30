@@ -7,6 +7,8 @@ const PRESETS = {
   light: { card_color: "#ffffff", card_opacity: 92, text_color: "#111111", font_size: 58, width: 78 },
   bold: { card: false, outline: true, bold: true, font_size: 92, text_color: "#ffe14d",
           outline_color: "#000000", position: 72, dim: 10 },
+  wordpop: { captions: "words", card: false, outline: true, bold: true, font_size: 88, text_color: "#ffffff",
+             highlight_color: "#ffe14d", outline_color: "#000000", position: 62, dim: 10, words_at_once: 3 },
 };
 
 let DEFAULT_STYLE = {};
@@ -41,7 +43,8 @@ async function init() {
 
   document.querySelectorAll("[data-preset]").forEach((b) => (b.onclick = () => writeStyle({ ...DEFAULT_STYLE, ...PRESETS[b.dataset.preset] })));
   FIELDS.forEach((k) => $(k).addEventListener("input", refresh));
-  $("background").addEventListener("change", loadPreviewBackground);
+  $("background").addEventListener("change", onBackgroundChange);
+  await loadFootage();
   $("title").addEventListener("input", updateCount);
   $("body").addEventListener("input", updateCount);
   $("form").addEventListener("submit", submit);
@@ -49,6 +52,7 @@ async function init() {
   document.fonts?.ready.then(refresh);
 
   loadPreviewBackground();
+  resumeRender();
 }
 
 function fillSelect(id, items, selected, each) {
@@ -97,6 +101,7 @@ function refresh() {
   document.querySelectorAll("output[data-for]").forEach((o) => (o.textContent = $(o.dataset.for).value + (o.dataset.unit || "")));
   $("outline_color").disabled = !s.outline;
   $("card_color").disabled = $("card_opacity").disabled = !s.card;
+  $("highlight_color").disabled = $("words_at_once").disabled = s.captions !== "words";
   try { localStorage.setItem("studioStyle", JSON.stringify(s)); } catch (_) {}
 
   const phone = $("phone"), card = $("pcard");
@@ -118,7 +123,13 @@ function refresh() {
         return `${(Math.cos(a) * st).toFixed(2)}px ${(Math.sin(a) * st).toFixed(2)}px 0 ${s.outline_color}`;
       }).join(",")
     : "none";
-  card.textContent = previewText();
+  if (s.captions === "words") {  // a few words, the second one "being spoken"
+    const words = previewText().split(/\s+/).slice(0, s.words_at_once);
+    card.innerHTML = words.map((w, i) => i === Math.min(1, words.length - 1)
+      ? `<span style="color:${s.highlight_color}">${esc(w)}</span>` : esc(w)).join(" ");
+  } else {
+    card.textContent = previewText();
+  }
 
   // Centre at `position`%, but never off-screen.
   const H = phone.clientHeight, h = card.offsetHeight;
@@ -131,7 +142,7 @@ function loadPreviewBackground() {
   if (opt?.dataset.ready === "1") {
     img.onload = () => { img.hidden = false; $("pnote").textContent = "Close to the final look. The video uses a moving background."; refresh(); };
     img.onerror = () => { img.hidden = true; refresh(); };
-    img.src = `/api/preview/${encodeURIComponent(opt.value)}`;
+    img.src = opt.dataset.still || `/api/preview/${encodeURIComponent(opt.value)}`;
   } else {
     img.hidden = true;
     $("pnote").textContent = "This background isn't downloaded yet, so the preview uses a placeholder.";
@@ -196,6 +207,7 @@ async function submit(e) {
         background: $("background").value, music: $("music").value, style: readStyle(),
       },
     });
+    remember(data.id);
     poll(data.id);
   } catch (err) {
     showError(err.message);
@@ -225,6 +237,7 @@ async function poll(id) {
   setProgress(job.percent, job.stage);
 
   if (job.status === "done") {
+    remember(null);
     const url = `/api/library/${job.video_id}/file`;
     $("result").innerHTML = `
       <video src="${url}" controls playsinline></video>
@@ -237,6 +250,7 @@ async function poll(id) {
     loadPreviewBackground(); // a first-time download is now available for the preview
     loadUsage();
   } else if (job.status === "error") {
+    remember(null);
     showError(`Failed: ${job.error || "unknown error"}`);
   } else {
     setTimeout(() => poll(id), 1000);
@@ -255,4 +269,132 @@ async function loadUsage() {
       : `${u.left} of ${u.limit} videos left this month on ${esc(plan.name)}.${plan.key === "free" ? ` <a href="/settings#billing">Upgrade</a>` : ""}`;
   } catch (_) { /* the page still works without it */ }
 }
+
+// ---------- your own footage ----------
+let lastBackground = null;
+
+async function loadFootage(select) {
+  let data;
+  try { data = await api("/api/footage"); } catch (_) { return; }
+  const sel = $("background");
+  sel.querySelector("#ownFootage")?.remove();
+  const group = document.createElement("optgroup");
+  group.id = "ownFootage";
+  group.label = "Your footage";
+  data.items.forEach((f) => {
+    const o = new Option(f.name, `upload:${f.id}`);
+    o.dataset.ready = "1";
+    o.dataset.still = `/api/footage/${f.id}/still`;
+    group.append(o);
+  });
+  group.append(new Option("＋ Upload your own…", "__upload"));
+  sel.append(group);
+  if (select) sel.value = select;
+  if (sel.value === "__upload") sel.value = lastBackground || sel.options[0].value;
+  lastBackground = sel.value;
+  renderFootageList(data);
+  loadPreviewBackground();
+}
+
+function onBackgroundChange() {
+  if ($("background").value === "__upload") {
+    $("background").value = lastBackground || $("background").options[0].value;
+    openFootage();
+    return;
+  }
+  lastBackground = $("background").value;
+  loadPreviewBackground();
+}
+
+function renderFootageList(data) {
+  const mb = (n) => `${Math.round(n / 1024 / 1024)} MB`;
+  $("footageList").innerHTML = data.items.length ? data.items.map((f) => `
+    <div class="footage-item">
+      <img src="/api/footage/${f.id}/still" alt="" loading="lazy">
+      <div><strong>${esc(f.name)}</strong>
+        <div class="meta">${Math.round(f.duration)} s · ${f.width}×${f.height} · ${mb(f.size)}</div></div>
+      <button type="button" class="ghost small" data-use="${f.id}">Use</button>
+      <button type="button" class="icon" data-drop="${f.id}" title="Delete" aria-label="Delete ${esc(f.name)}">×</button>
+    </div>`).join("") : `<p class="empty">No clips yet.</p>`;
+  $("footageSpace").textContent = `${mb(data.used)} of ${mb(data.max_total)} used · up to ${data.max_files} clips`;
+  document.querySelectorAll("[data-use]").forEach((b) => (b.onclick = () => {
+    $("background").value = `upload:${b.dataset.use}`;
+    lastBackground = $("background").value;
+    loadPreviewBackground();
+    $("footageDlg").close();
+  }));
+  document.querySelectorAll("[data-drop]").forEach((b) => (b.onclick = async () => {
+    if (!confirm("Delete this clip? Videos you already made with it aren't affected.")) return;
+    await api(`/api/footage/${b.dataset.drop}`, { method: "DELETE" });
+    const current = $("background").value === `upload:${b.dataset.drop}` ? $("background").options[0].value : $("background").value;
+    loadFootage(current);
+  }));
+}
+
+function openFootage() {
+  $("footageError").hidden = true;
+  $("footageBar").hidden = true;
+  $("footageDlg").showModal();
+}
+
+$("footageForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const file = $("footageFile").files[0];
+  const fail = (msg) => { $("footageError").hidden = false; $("footageError").textContent = msg; $("footageGo").disabled = false; };
+  if (!file) return fail("Choose a video file first.");
+  if (!$("footageRights").checked) return fail("Tick the box to confirm you have the rights to this footage.");
+  if (file.size > 500 * 1024 * 1024) return fail("That file is over 500 MB. Trim or compress it first.");
+  const form = new FormData();
+  form.append("file", file);
+  form.append("rights", "yes");
+  const xhr = new XMLHttpRequest();  // fetch() can't report upload progress
+  xhr.open("POST", "/api/footage");
+  xhr.upload.onprogress = (ev) => {
+    if (ev.lengthComputable) $("footageFill").style.width = `${Math.round((100 * ev.loaded) / ev.total)}%`;
+  };
+  xhr.onload = () => {
+    let data = null;
+    try { data = JSON.parse(xhr.responseText); } catch (_) {}
+    if (xhr.status !== 200) return fail(data?.error || `Upload failed (${xhr.status}).`);
+    $("footageGo").disabled = false;
+    $("footageBar").hidden = true;
+    $("footageFile").value = "";
+    loadFootage(`upload:${data.items[0].id}`);
+    $("footageDlg").close();
+  };
+  xhr.onerror = () => fail("Upload failed. Check your connection and try again.");
+  $("footageGo").disabled = true;
+  $("footageError").hidden = true;
+  $("footageBar").hidden = false;
+  $("footageFill").style.width = "0%";
+  xhr.send(form);
+});
+document.querySelectorAll("#footageDlg [data-close]").forEach((b) => (b.onclick = () => $("footageDlg").close()));
+
 init();
+
+// ---------- pick a render back up after a reload ----------
+// The render runs on the server either way; this only brings the progress bar back.
+function remember(id) {
+  try { id ? localStorage.setItem("studioJob", id) : localStorage.removeItem("studioJob"); } catch (_) {}
+}
+
+async function resumeRender() {
+  let running = [], saved = null;
+  try { running = await api("/api/jobs"); } catch (_) { return; }
+  try { saved = localStorage.getItem("studioJob"); } catch (_) {}
+  // A render still going (the newest, if several are queued), else the last one started on this browser.
+  const id = running.length ? running[running.length - 1].id : saved;
+  if (!id) return;
+  try {
+    await api(`/api/jobs/${id}`);
+  } catch (_) {
+    return remember(null);  // finished long ago, or the server restarted
+  }
+  $("go").disabled = true;
+  $("progressCard").hidden = false;
+  $("result").innerHTML = running.length > 1
+    ? `<p class="meta">${running.length - 1} more video${running.length > 2 ? "s" : ""} waiting in the queue.</p>` : "";
+  remember(id);
+  poll(id);
+}

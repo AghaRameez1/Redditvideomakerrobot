@@ -58,6 +58,18 @@ CREATE TABLE IF NOT EXISTS shares (
     percent     INTEGER NOT NULL DEFAULT 0,
     url         TEXT,
     error       TEXT,
+    created_at  TEXT NOT NULL,
+    scheduled_for TEXT                    -- when YouTube publishes it, for scheduled posts
+);
+CREATE TABLE IF NOT EXISTS footage (      -- users' own background videos
+    id          INTEGER PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,            -- the file name they uploaded, for display
+    filename    TEXT NOT NULL,            -- inside results/user-N/.footage/
+    duration    REAL NOT NULL,
+    width       INTEGER NOT NULL,
+    height      INTEGER NOT NULL,
+    size        INTEGER NOT NULL,
     created_at  TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS renders (      -- one row per finished render, for monthly plan limits
@@ -109,7 +121,8 @@ def init(app):
         # Columns added after the first release, for existing databases.
         for table, column, spec in (("users", "role", "TEXT NOT NULL DEFAULT 'user'"),
                                     ("users", "plan", "TEXT NOT NULL DEFAULT 'free'"),
-                                    ("videos", "file_removed_at", "TEXT")):
+                                    ("videos", "file_removed_at", "TEXT"),
+                                    ("shares", "scheduled_for", "TEXT")):
             if column not in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {spec}")
         # The earlier yes/no admin flag became the role column.

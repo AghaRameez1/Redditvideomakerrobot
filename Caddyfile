@@ -2,8 +2,9 @@
 # With DOMAIN=localhost it uses a local test certificate instead.
 {$DOMAIN} {
 	encode zstd gzip
+	# Footage uploads: the app allows 500 MB files.
 	request_body {
-		max_size 5MB
+		max_size 520MB
 	}
 	reverse_proxy app:8000
 }

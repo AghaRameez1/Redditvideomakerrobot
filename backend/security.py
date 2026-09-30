@@ -97,6 +97,10 @@ def page_role_required(role: str):
 
 # ---------- cross-site request protection ----------
 
+UPLOAD_PATHS = {"/api/footage"}
+JSON_LIMIT = 1024 * 1024  # everything except uploads is small JSON
+
+
 def check_same_origin():
     """Reject state-changing requests that come from another site (CSRF).
 
@@ -107,6 +111,12 @@ def check_same_origin():
     source = request.headers.get("Origin") or request.headers.get("Referer")
     if not source or urlparse(source).netloc != request.host:
         abort(403)
+    if request.path in UPLOAD_PATHS:  # the one place that takes a file (multipart form)
+        return
+    if request.content_length and request.content_length > JSON_LIMIT:
+        abort(413)
+    if request.content_length is None and request.headers.get("Transfer-Encoding"):
+        abort(411)  # no declared size: could bypass the 1 MB limit
     if request.path.startswith("/api/") and request.content_length and not request.is_json:
         abort(415)
 

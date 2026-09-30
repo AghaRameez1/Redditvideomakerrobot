@@ -75,8 +75,13 @@ def channel(access_token: str) -> dict:
     return {"id": items[0]["id"], "name": items[0]["snippet"]["title"]}
 
 
-def upload(refresh_token, client_id, client_secret, path, title, description, privacy, on_progress) -> str:
-    """Upload the video and return its YouTube Shorts link. on_progress gets 0-100."""
+def upload(refresh_token, client_id, client_secret, path, title, description, privacy, on_progress,
+           publish_at=None) -> str:
+    """Upload the video and return its YouTube Shorts link. on_progress gets 0-100.
+
+    publish_at: an ISO 8601 UTC time. YouTube keeps the video private and publishes it then,
+    by itself, so this app doesn't need to be running at that moment.
+    """
     creds = Credentials(token=None, refresh_token=refresh_token, token_uri=TOKEN_URI,
                         client_id=client_id, client_secret=client_secret, scopes=SCOPES)
     body = {
@@ -84,6 +89,8 @@ def upload(refresh_token, client_id, client_secret, path, title, description, pr
         "status": {"privacyStatus": privacy if privacy in PRIVACY else "private",
                    "selfDeclaredMadeForKids": False},
     }
+    if publish_at:  # YouTube only accepts a publish time on private videos
+        body["status"].update(privacyStatus="private", publishAt=publish_at)
     media = MediaFileUpload(str(path), mimetype="video/mp4", chunksize=4 * 1024 * 1024, resumable=True)
     try:
         request = _service(creds).videos().insert(part="snippet,status", body=body, media_body=media)

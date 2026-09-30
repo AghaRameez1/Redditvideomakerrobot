@@ -58,12 +58,22 @@
       <input type="text" id="ytTitle" maxlength="100">
       <label for="ytDesc">Description</label>
       <textarea id="ytDesc" rows="6" maxlength="5000"></textarea>
+      <span class="lbl">When</span>
+      <div class="when">
+        <label class="check"><input type="radio" name="when" value="now" checked> Post now</label>
+        <label class="check"><input type="radio" name="when" value="later"> Schedule</label>
+        <input type="datetime-local" id="ytWhen" hidden aria-label="Publish date and time">
+      </div>
+      <p class="meta" id="ytWhenNote" hidden>It uploads now and stays private; YouTube makes it public at this
+        time by itself, even if this app is off.</p>
+      <div id="ytPrivacyRow">
       <label for="ytPrivacy">Visibility</label>
       <select id="ytPrivacy">
         <option value="private">Private</option>
         <option value="unlisted">Unlisted</option>
         <option value="public">Public</option>
       </select>
+      </div>
       <p class="meta">Until this app passes Google's audit, YouTube keeps every upload private
         whatever you pick here. You can make it public afterwards in YouTube Studio.</p>
     </div>

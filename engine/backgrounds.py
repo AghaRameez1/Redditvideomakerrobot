@@ -46,10 +46,17 @@ def random_start(source: Path, needed: float) -> float:
 
 def preview_frame(bg: Background, out_jpg: Path) -> Path:
     """A still from the footage, cropped to 9:16 the same way the render crops it."""
+    return still_frame(bg.path, out_jpg)
+
+
+def still_frame(video: Path, out_jpg: Path) -> Path:
+    """A 9:16 still from any footage file: 30 s in, or the middle of a shorter clip."""
+    from .render import CROP_9_16
     out_jpg.parent.mkdir(parents=True, exist_ok=True)
+    at = min(30.0, duration(video) / 2)
     subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-ss", "30", "-i", str(bg.path), "-frames:v", "1",
-         "-vf", "crop=ih*9/16:ih,scale=540:-2", str(out_jpg)],
+        ["ffmpeg", "-v", "error", "-y", "-ss", f"{at:.2f}", "-i", str(video), "-frames:v", "1",
+         "-vf", f"{CROP_9_16},scale=540:-2", str(out_jpg)],
         check=True,
     )
     return out_jpg

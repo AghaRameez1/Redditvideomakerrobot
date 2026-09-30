@@ -2,6 +2,7 @@
 const PLATFORM = { youtube: "YouTube" };
 let connections = {};
 let videos = [];
+let rendering = [];  // videos still being made (from /api/jobs)
 let sharing = null; // {video, platform} while the share dialog is open
 const polling = new Set();
 
@@ -10,6 +11,10 @@ const fmtDate = (iso) => new Date(iso).toLocaleDateString(undefined, { day: "num
 
 function shareBadge(s) {
   const name = PLATFORM[s.platform];
+  if (s.status === "done" && s.scheduled_for && new Date(s.scheduled_for) > new Date()) {
+    const when = new Date(s.scheduled_for).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    return `<a class="chip scheduled" href="${esc(s.url)}" target="_blank" rel="noopener" title="Uploaded; YouTube publishes it then">${name} · goes live ${when}</a>`;
+  }
   if (s.status === "done") return `<a class="chip done" href="${esc(s.url)}" target="_blank" rel="noopener">${name} ✓ View</a>`;
   if (s.status === "error") return `<span class="chip error" title="${esc(s.error || "")}">${name} failed</span>`;
   return `<span class="chip busy">${name} ${s.status === "processing" ? "processing" : "uploading"} ${s.percent}%</span>`;
@@ -35,8 +40,8 @@ function badges(v) {
 }
 
 function render() {
-  $("empty").hidden = videos.length > 0;
-  $("grid").innerHTML = videos.map((v) => {
+  $("empty").hidden = videos.length > 0 || rendering.length > 0;
+  $("grid").innerHTML = rendering.map(renderingCard).join("") + videos.map((v) => {
     const posted = Object.values(postedLinks(v));
     const postLink = !v.has_file && posted[0];  // file gone: the thumbnail opens the post instead
     return `
@@ -69,8 +74,10 @@ function render() {
 }
 
 async function load() {
-  const [list, stats] = await Promise.all([api("/api/library"), api("/api/library/stats")]);
+  const [list, stats, jobs] = await Promise.all([api("/api/library"), api("/api/library/stats"), api("/api/jobs")]);
   videos = list;
+  rendering = jobs;
+  if (rendering.length) watchRenders();
   render();
   renderStats(stats);
 }
@@ -136,6 +143,8 @@ function openShare(id, platform) {
   $("shareTitle").textContent = `Share to ${PLATFORM[platform]}`;
   $("shareError").hidden = true;
   $("shareGo").disabled = false;
+  document.querySelector("input[name=when][value=now]").checked = true;
+  setWhen();
   $("ytTitle").value = v.title;
   $("ytDesc").value = v.default_text + "\n\n#Shorts";
   updateCounts();
@@ -151,6 +160,10 @@ $("shareForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const { video, platform } = sharing;
   const body = { title: $("ytTitle").value, description: $("ytDesc").value, privacy: $("ytPrivacy").value };
+  if (scheduling()) {
+    if (!$("ytWhen").value) { $("shareError").hidden = false; $("shareError").textContent = "Pick a date and time."; return; }
+    body.publish_at = new Date($("ytWhen").value).toISOString();  // the browser's local time, sent as UTC
+  }
   $("shareGo").disabled = true;
   try {
     const { share_id } = await api(`/api/library/${video.id}/share/${platform}`, { method: "POST", body });
@@ -197,3 +210,53 @@ $("player").addEventListener("close", () => { $("playerVideo").pause(); $("playe
   }
   await load();
 })();
+
+// ---------- scheduling ----------
+const scheduling = () => document.querySelector("input[name=when]:checked")?.value === "later";
+const localInput = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+function setWhen() {
+  const later = scheduling();
+  $("ytWhen").hidden = $("ytWhenNote").hidden = !later;
+  $("ytPrivacyRow").hidden = later;  // a scheduled video goes public at its time
+  $("shareGo").textContent = later ? "Schedule" : "Post";
+  const soon = new Date(Date.now() + 20 * 60000), max = new Date(Date.now() + 180 * 86400000);
+  $("ytWhen").min = localInput(soon);
+  $("ytWhen").max = localInput(max);
+  if (later && !$("ytWhen").value) {
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(9, 0, 0, 0);
+    $("ytWhen").value = localInput(tomorrow);  // a sensible default: tomorrow 9 am
+  }
+}
+document.querySelectorAll("input[name=when]").forEach((r) => (r.onchange = setWhen));
+
+// ---------- videos still rendering ----------
+let watchingRenders = false;
+
+function renderingCard(j) {
+  return `
+    <article class="vcard rendering">
+      <div class="thumb gone"><span class="render-pct">${j.percent}%</span></div>
+      <div class="vbody">
+        <h3 title="${esc(j.title)}">${esc(j.title)}</h3>
+        <p class="meta">${j.status === "queued" ? "Waiting its turn" : esc(j.stage)}…</p>
+        <div class="bar"><div class="fill" style="width:${j.percent}%"></div></div>
+      </div>
+    </article>`;
+}
+
+async function watchRenders() {
+  if (watchingRenders) return;
+  watchingRenders = true;
+  try {
+    while (rendering.length) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const before = rendering.length;
+      rendering = await api("/api/jobs");
+      if (rendering.length < before) await load();  // one finished: show it in the grid
+      else render();
+    }
+  } finally {
+    watchingRenders = false;
+  }
+}

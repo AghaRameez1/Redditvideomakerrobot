@@ -1,4 +1,4 @@
-"""Text cards: one transparent PNG per sentence, drawn at final video size."""
+"""Text cards: one transparent PNG per sentence, or full-frame word-by-word captions."""
 from PIL import Image, ImageDraw, ImageFont
 
 from .paths import FONTS
@@ -16,10 +16,14 @@ DEFAULT_STYLE = {
     "card": True,
     "card_color": "#212124",
     "card_opacity": 100,    # percent
+    "captions": "cards",    # "cards": one card per sentence. "words": a few words at a time, spoken word highlighted
+    "highlight_color": "#ffe14d",
+    "words_at_once": 3,     # words shown together in "words" mode, 1-5
 }
 
 _LIMITS = {"blur": (0, 40), "dim": (0, 80), "position": (5, 95), "width": (40, 96),
-           "font_size": (28, 140), "card_opacity": (0, 100)}
+           "font_size": (28, 140), "card_opacity": (0, 100), "words_at_once": (1, 5)}
+_CHOICES = {"captions": ("cards", "words")}
 
 
 def resolve_style(overrides):
@@ -30,7 +34,12 @@ def resolve_style(overrides):
             continue
         if key in _LIMITS:
             lo, hi = _LIMITS[key]
-            value = max(lo, min(hi, int(float(value))))
+            try:
+                value = max(lo, min(hi, int(float(value))))
+            except (TypeError, ValueError):
+                value = style[key]
+        elif key in _CHOICES:
+            value = value if value in _CHOICES[key] else style[key]
         elif isinstance(style[key], bool):
             value = bool(value)
         elif key.endswith("color"):
@@ -101,3 +110,54 @@ def render_watermark(text, path, size=30):
     draw.rounded_rectangle([0, 0, width - 1, height - 1], radius=height // 2, fill=(0, 0, 0, 140))
     draw.text((width / 2, height / 2), text, font=font, anchor="mm", fill=(255, 255, 255, 230))
     img.save(path)
+
+
+def _word_font(style):
+    return ImageFont.truetype(str(FONTS / ("Roboto-Bold.ttf" if style["bold"] else "Roboto-Medium.ttf")),
+                              style["font_size"])
+
+
+def render_word_frame(words, highlight, style, size, path):
+    """One full-frame transparent PNG showing `words`, with words[highlight] in the highlight colour.
+
+    Drawn at full video size, so all frames line up and can be played as one caption track.
+    """
+    width, height = size
+    font = _word_font(style)
+    font_size = style["font_size"]
+    stroke = max(2, font_size // 14) if style["outline"] or not style["card"] else 0
+    space = font.getlength(" ")
+    max_w = width * style["width"] / 100 - (2 * font_size * 0.5 if style["card"] else 0)
+
+    lines, line = [], []  # wrap word by word, keeping each word's index
+    for i, word in enumerate(words):
+        trial = line + [(i, word)]
+        if line and sum(font.getlength(w) for _, w in trial) + space * (len(trial) - 1) > max_w:
+            lines.append(line)
+            line = [(i, word)]
+        else:
+            line = trial
+    lines.append(line)
+
+    line_h = round(font_size * 1.28)
+    block_h = line_h * len(lines)
+    centre_y = height * style["position"] / 100
+    top = max(0, min(height - block_h, centre_y - block_h / 2))
+    img = Image.new("RGBA", size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    line_widths = [sum(font.getlength(w) for _, w in ln) + space * (len(ln) - 1) for ln in lines]
+    if style["card"]:
+        pad = round(font_size * 0.5)
+        box_w = max(line_widths) + 2 * pad
+        alpha = round(255 * style["card_opacity"] / 100)
+        draw.rounded_rectangle([(width - box_w) / 2, top - pad, (width + box_w) / 2, top + block_h + pad],
+                               radius=round(font_size * 0.45), fill=_rgba(style["card_color"], alpha))
+    for row, (ln, line_w) in enumerate(zip(lines, line_widths)):
+        x = (width - line_w) / 2
+        y = top + row * line_h + line_h / 2
+        for i, word in ln:
+            colour = style["highlight_color"] if i == highlight else style["text_color"]
+            draw.text((x, y), word, font=font, anchor="lm", fill=_rgba(colour), stroke_width=stroke,
+                      stroke_fill=_rgba(style["outline_color"]))
+            x += font.getlength(word) + space
+    img.save(path, optimize=False, compress_level=1)

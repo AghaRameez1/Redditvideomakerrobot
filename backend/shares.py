@@ -9,11 +9,12 @@ from .publish import PublishError, youtube
 _uploads = threading.Semaphore(2)  # a couple at a time; uploads are network-bound, not CPU-bound
 
 
-def start(db_path, video_id, platform, run) -> int:
+def start(db_path, video_id, platform, run, scheduled_for=None) -> int:
     """run(on_progress) -> url. Returns the share id to poll."""
     with sqlite3.connect(db_path) as conn:
-        share_id = conn.execute("INSERT INTO shares (video_id, platform, status, created_at) "
-                                "VALUES (?, ?, 'uploading', ?)", (video_id, platform, db.now())).lastrowid
+        share_id = conn.execute("INSERT INTO shares (video_id, platform, status, created_at, scheduled_for) "
+                                "VALUES (?, ?, 'uploading', ?, ?)",
+                                (video_id, platform, db.now(), scheduled_for)).lastrowid
     threading.Thread(target=_run, args=(db_path, share_id, run), daemon=True).start()
     return share_id
 
@@ -42,6 +43,6 @@ def _run(db_path, share_id, run):
             update(status="error", error=f"Upload failed unexpectedly: {exc}")
 
 
-def youtube_job(refresh_token, client_id, client_secret, path, title, description, privacy):
+def youtube_job(refresh_token, client_id, client_secret, path, title, description, privacy, publish_at=None):
     return lambda on_progress: youtube.upload(refresh_token, client_id, client_secret, path,
-                                              title, description, privacy, on_progress)
+                                              title, description, privacy, on_progress, publish_at)
